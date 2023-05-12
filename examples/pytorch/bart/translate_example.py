@@ -22,11 +22,11 @@ import numpy as np
 import torch
 import torch.distributed as dist
 
-from transformers import BartForConditionalGeneration, BartTokenizer 
+from transformers import BartForConditionalGeneration, BartTokenizer
 from transformers import MBartForConditionalGeneration, MBartTokenizer 
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(dir_path + "/../../..")
+sys.path.append(f"{dir_path}/../../..")
 from examples.pytorch.bart.utils.ft_encoder import FTBartEncoderWeight, FTBartEncoder
 from examples.pytorch.bart.utils.ft_decoding import FTBartDecodingWeight, FTBartDecoding, FTBart
 from examples.pytorch.decoding.utils.recover_bpe import recover_bpe
@@ -39,17 +39,17 @@ def bleu_score(pred, ref):
     from sacrebleu import corpus_bleu
     bleu = corpus_bleu(pred, [ref], force=True)
     LOGGER.info("       bleu score: {:6.2f}".format(bleu.score))
-    LOGGER.info("       bleu counts: {}".format(bleu.counts))
-    LOGGER.info("       bleu totals: {}".format(bleu.totals))
-    LOGGER.info("       bleu precisions: {}".format(bleu.precisions))
-    LOGGER.info("       bleu sys_len: {}; ref_len: {}".format(bleu.sys_len, bleu.ref_len))
+    LOGGER.info(f"       bleu counts: {bleu.counts}")
+    LOGGER.info(f"       bleu totals: {bleu.totals}")
+    LOGGER.info(f"       bleu precisions: {bleu.precisions}")
+    LOGGER.info(f"       bleu sys_len: {bleu.sys_len}; ref_len: {bleu.ref_len}")
     return bleu
 
 class TranslationResult(object):
     def __init__(self, name, frame_work):
         self.name = name
         self.frame_work = frame_work # FT or HF
-        self.file_name = name + ".txt"
+        self.file_name = f"{name}.txt"
 
         self.token_list = []
         self.batch_ids_list = []

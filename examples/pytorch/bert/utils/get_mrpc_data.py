@@ -29,15 +29,17 @@ def format_mrpc(mrpc_dir):
     mrpc_test_file = os.path.join(mrpc_dir, "msr_paraphrase_test.txt")
     urllib.request.urlretrieve(MRPC_TRAIN, mrpc_train_file)
     urllib.request.urlretrieve(MRPC_TEST, mrpc_test_file)
-    assert os.path.isfile(mrpc_train_file), "Train data not found at %s" % mrpc_train_file
-    assert os.path.isfile(mrpc_test_file), "Test data not found at %s" % mrpc_test_file
+    assert os.path.isfile(
+        mrpc_train_file
+    ), f"Train data not found at {mrpc_train_file}"
+    assert os.path.isfile(
+        mrpc_test_file
+    ), f"Test data not found at {mrpc_test_file}"
     urllib.request.urlretrieve('https://firebasestorage.googleapis.com/v0/b/mtl-sentence-representations.appspot.com/o/data%2Fmrpc_dev_ids.tsv?alt=media&token=ec5c0836-31d5-48f4-b431-7480817f1adc', os.path.join(mrpc_dir, "dev_ids.tsv"))
 
     dev_ids = []
     with open(os.path.join(mrpc_dir, "dev_ids.tsv"), encoding="utf8") as ids_fh:
-        for row in ids_fh:
-            dev_ids.append(row.strip().split('\t'))
-
+        dev_ids.extend(row.strip().split('\t') for row in ids_fh)
     with open(mrpc_train_file, encoding="utf8") as data_fh, \
          open(os.path.join(mrpc_dir, "train.tsv"), 'w', encoding="utf8") as train_fh, \
          open(os.path.join(mrpc_dir, "dev.tsv"), 'w', encoding="utf8") as dev_fh:

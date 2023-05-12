@@ -16,15 +16,15 @@ import argparse
 from sacrebleu import corpus_bleu
 
 def bleu_score(pred_file, ref_file, bleu_score_threshold=None):
-    with open(pred_file, "r") as pred_stream, open(ref_file, "r") as ref_stream:
+    with (open(pred_file, "r") as pred_stream, open(ref_file, "r") as ref_stream):
         pred_stream_txt = pred_stream.readlines()
         ref_stream_txt = ref_stream.readlines()
         bleu = corpus_bleu(pred_stream_txt, [ref_stream_txt], force=True)
         print("       bleu score: {:6.2f}".format(bleu.score))
-        print("       bleu counts: {}".format(bleu.counts))
-        print("       bleu totals: {}".format(bleu.totals))
-        print("       bleu precisions: {}".format(bleu.precisions))
-        print("       bleu sys_len: {}; ref_len: {}".format(bleu.sys_len, bleu.ref_len))
+        print(f"       bleu counts: {bleu.counts}")
+        print(f"       bleu totals: {bleu.totals}")
+        print(f"       bleu precisions: {bleu.precisions}")
+        print(f"       bleu sys_len: {bleu.sys_len}; ref_len: {bleu.ref_len}")
         if bleu_score_threshold != None:
             assert bleu.score >= bleu_score_threshold, "TEST FAIL !"
             print("[INFO] TEST PASS !")

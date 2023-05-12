@@ -24,7 +24,7 @@ import numpy as np
 import os
 import sys
 dir_path = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(dir_path + "/../../..")
+sys.path.append(f"{dir_path}/../../..")
 
 from examples.pytorch.decoding.utils.decoding import DecodingWeights, TorchDecoding, ArgHelper
 from examples.pytorch.decoding.utils.ft_decoding import FtDecodingWeights, CustomDecoding

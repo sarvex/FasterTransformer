@@ -84,8 +84,9 @@ class UnpackedNemoCheckpointDir:
         model_config = None
 
         model_config_filename = "model_config.yaml"
-        model_configs_paths = list(self._checkpoints_dir.rglob(model_config_filename))
-        if model_configs_paths:
+        if model_configs_paths := list(
+            self._checkpoints_dir.rglob(model_config_filename)
+        ):
             if len(model_configs_paths) > 1:
                 raise RuntimeError(
                     f"There are more than single {model_config_filename} "
@@ -99,8 +100,9 @@ class UnpackedNemoCheckpointDir:
             LOGGER.debug("Searching model config in checkpoints")
             # try to obtain from checkpoint
             checkpoint_name = self.checkpoint_name
-            checkpoints_paths = sorted(self._checkpoints_dir.rglob(checkpoint_name))
-            if checkpoints_paths:
+            if checkpoints_paths := sorted(
+                self._checkpoints_dir.rglob(checkpoint_name)
+            ):
                 # assume that parallel ranks 0 checkpoint should have model config embedded
                 checkpoint_path = checkpoints_paths[0]
 
@@ -168,8 +170,7 @@ class UnpackedNemoCheckpointDir:
             "*last.ckpt",  # newer format of checkpoints
         ]
         for pattern in patterns:
-            model_files = sorted(list(self._checkpoints_dir.rglob(pattern)))
-            if model_files:
+            if model_files := sorted(list(self._checkpoints_dir.rglob(pattern))):
                 return model_files[0].name
 
         raise ValueError(f"Could not find checkpoint files in {self._checkpoints_dir}")
@@ -202,8 +203,7 @@ class UnpackedNemoCheckpointDir:
 
         file_path = None
         if filename_pattern is not None:
-            files_paths = list(self._checkpoints_dir.glob(filename_pattern))
-            if files_paths:
+            if files_paths := list(self._checkpoints_dir.glob(filename_pattern)):
                 assert len(files_paths) == 1
                 file_path = files_paths[0]
 

@@ -27,11 +27,18 @@ class FtDecodingWeights(object):
     def __init__(self, layer_num, hidden_dim, onmtcheckpoint, max_step_for_pe=2048):
         self.max_step_for_pe = max_step_for_pe
         self.hidden_dim = hidden_dim
-        self.w = []
         prefix = 'decoder.transformer_layers.'
-        self.w.append(torch.stack(
-            [onmtcheckpoint['model'][prefix + str(i) + '.layer_norm_1.weight'] for i in range(layer_num)],
-            0).contiguous())
+        self.w = [
+            torch.stack(
+                [
+                    onmtcheckpoint['model'][
+                        prefix + str(i) + '.layer_norm_1.weight'
+                    ]
+                    for i in range(layer_num)
+                ],
+                0,
+            ).contiguous()
+        ]
         self.w.append(torch.stack(
             [onmtcheckpoint['model'][prefix + str(i) + '.layer_norm_1.bias'] for i in range(layer_num)],
             0).contiguous())

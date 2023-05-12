@@ -45,7 +45,7 @@ def split_and_convert(args):
 
     torch_device = 'cuda' if torch.cuda.is_available() else 'cpu'
     bert_model = BertModel.from_pretrained(args.in_file).to(torch_device)
-    
+
     try:
         config = configparser.ConfigParser()
         config["bert"] = {}
@@ -54,7 +54,7 @@ def split_and_convert(args):
         for k, v in vars(bert_model.config).items():
             config["bert"][k] = f"{v}"
         config["bert"]["weight_data_type"] = args.weight_data_type
-        with open((Path(saved_dir) / f"config.ini").as_posix(), 'w') as configfile:
+        with open((Path(saved_dir) / "config.ini").as_posix(), 'w') as configfile:
             config.write(configfile)
     except Exception as e:
         print(f"Fail to save the config in config.ini. due to {e}")
@@ -102,15 +102,13 @@ def split_and_convert(args):
     ]
     '''
 
-    model = {}
-    for key, param in bert_model.named_parameters():
-        model[key] = param
-
-    for key in model:
-        if key == "bert.embeddings.word_embeddings.weight" or \
-                key == "bert.embeddings.position_embeddings.weight" or \
-                key == "bert.embeddings.token_type_embeddings.weight":
-            weight = model[key]
+    model = dict(bert_model.named_parameters())
+    for key, weight in model.items():
+        if key in [
+            "bert.embeddings.word_embeddings.weight",
+            "bert.embeddings.position_embeddings.weight",
+            "bert.embeddings.token_type_embeddings.weight",
+        ]:
             weight.detach().cpu().numpy().astype(np_weight_data_type).tofile(f"{saved_dir}/bert.{key}.bin")
             print(f"convert {key}")
         elif key.find("self.query") == -1 and key.find("self.key") == -1 and key.find("self.value") == -1:
@@ -185,7 +183,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print("\n=============== Argument ===============")
     for key in vars(args):
-        print("{}: {}".format(key, vars(args)[key]))
+        print(f"{key}: {vars(args)[key]}")
     print("========================================")
 
     split_and_convert(args)

@@ -18,7 +18,7 @@ import zipfile
 
 class GooglePretrainedWeightDownloader:
     def __init__(self, save_path):
-        self.save_path = save_path + '/google_pretrained_weights'
+        self.save_path = f'{save_path}/google_pretrained_weights'
 
         if not os.path.exists(self.save_path):
             os.makedirs(self.save_path)
@@ -117,27 +117,27 @@ class GooglePretrainedWeightDownloader:
         # Iterate over urls: download, unzip, verify sha256sum
         found_mismatch_sha = False
         for model in self.model_urls:
-          url = self.model_urls[model][0]
-          file = self.save_path + '/' + self.model_urls[model][1]
+            url = self.model_urls[model][0]
+            file = f'{self.save_path}/{self.model_urls[model][1]}'
 
-          print('Downloading', url)
-          response = urllib.request.urlopen(url)
-          with open(file, 'wb') as handle:
-            handle.write(response.read())
+            print('Downloading', url)
+            response = urllib.request.urlopen(url)
+            with open(file, 'wb') as handle:
+              handle.write(response.read())
 
-          print('Unzipping', file)
-          zip = zipfile.ZipFile(file, 'r')
-          zip.extractall(self.save_path)
-          zip.close()
+            print('Unzipping', file)
+            zip = zipfile.ZipFile(file, 'r')
+            zip.extractall(self.save_path)
+            zip.close()
 
-          sha_dict = self.model_sha[model]
-          for extracted_file in sha_dict:
-            sha = sha_dict[extracted_file]
-            if sha != self.sha256sum(file[:-4] + '/' + extracted_file):
-              found_mismatch_sha = True
-              print('SHA256sum does not match on file:', extracted_file, 'from download url:', url)
-            else:
-              print(file[:-4] + '/' + extracted_file, '\t', 'verified')
+            sha_dict = self.model_sha[model]
+            for extracted_file in sha_dict:
+                sha = sha_dict[extracted_file]
+                if sha != self.sha256sum(f'{file[:-4]}/{extracted_file}'):
+                    found_mismatch_sha = True
+                    print('SHA256sum does not match on file:', extracted_file, 'from download url:', url)
+                else:
+                    print(f'{file[:-4]}/{extracted_file}', '\t', 'verified')
 
         if not found_mismatch_sha:
           print("All downloads pass sha256sum verification.")

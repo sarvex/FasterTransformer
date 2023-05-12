@@ -6,10 +6,7 @@ colors = ["gray", "darkorange", "limegreen", "royalblue", "lightcoral", "bisque"
 
 profile = {}
 
-filename = "profile.txt"
-if len(sys.argv) > 1:
-    filename = sys.argv[1]
-
+filename = sys.argv[1] if len(sys.argv) > 1 else "profile.txt"
 for line in open(filename):
     if line.startswith("Tile"):
         tile_id = line.split(":")[0].split()[1]
@@ -21,14 +18,14 @@ for line in open(filename):
         profile[tile_id][toks[0]] = int(toks[1])
 
 min_time = None
-for tile in profile:
-    if profile[tile]["sm_id"] == 0:
+for tile, value in profile.items():
+    if value["sm_id"] == 0:
         start_time = profile[tile]["scheduler_fetch_start"]
         if min_time is None or start_time < min_time:
             min_time = start_time
 
-for tile in profile:
-    for key in profile[tile]:
+for tile, value_ in profile.items():
+    for key in value_:
         if key != "sm_id":
             assert(profile[tile][key] is not None)
             profile[tile][key] = profile[tile][key] - min_time
@@ -44,8 +41,7 @@ tile_offset = 0
 
 totals = collections.defaultdict(float)
 
-for tile_id in profile:
-    entry = profile[tile_id]
+for entry in profile.values():
     if entry["sm_id"] == 0:
 
         ax.add_patch(Rectangle((entry["scheduler_fetch_start"],tile_offset),entry["scheduler_fetch_complete"]-entry["scheduler_fetch_start"],0.4,facecolor="blue"))

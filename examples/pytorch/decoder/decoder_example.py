@@ -24,7 +24,7 @@ import torch
 
 from onmt.utils.misc import sequence_mask
 dir_path = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(dir_path + "/../../..")
+sys.path.append(f"{dir_path}/../../..")
 from examples.pytorch.decoder.utils.decoder import ONMTDecoder, init_op_cache, init_onmt_cache
 from examples.pytorch.decoder.utils.ft_decoder import FTDecoder, FtDecoderWeights
 from examples.pytorch.decoding.utils.decoding import DecodingWeights
@@ -56,23 +56,19 @@ def main():
 
     hidden_dim = args.head_num * args.head_size
 
-    if args.step <= 0:
-        step = args.seq_len
-    else:
-        step = args.step
-
+    step = args.seq_len if args.step <= 0 else args.step
     print("\n=============== Argument ===============")
-    print('batch_size: ' + str(args.batch_size))
-    print('layer_num: ' + str(args.layer_num))
-    print('seq_len: ' + str(args.seq_len))
-    print('head_num: ' + str(args.head_num))
-    print('head_size: ' + str(args.head_size))
-    print('hidden_dim: ' + str(hidden_dim))
-    print('step: ' + str(step))
-    print('data_type: ' + str(args.data_type))
-    print('test_time: ' + str(args.time))
+    print(f'batch_size: {str(args.batch_size)}')
+    print(f'layer_num: {str(args.layer_num)}')
+    print(f'seq_len: {str(args.seq_len)}')
+    print(f'head_num: {str(args.head_num)}')
+    print(f'head_size: {str(args.head_size)}')
+    print(f'hidden_dim: {str(hidden_dim)}')
+    print(f'step: {str(step)}')
+    print(f'data_type: {str(args.data_type)}')
+    print(f'test_time: {str(args.time)}')
     print("========================================\n")
-    
+
     np.random.seed(1)
     torch.manual_seed(0)
     random.seed(0)
@@ -89,7 +85,7 @@ def main():
 
     weights = DecodingWeights(args.layer_num, hidden_dim, 30000)
     ft_weights = FtDecoderWeights(args.layer_num, hidden_dim, weights.w)
-    
+
     onmt_decoder = ONMTDecoder(args.layer_num, args.head_num, args.head_size, weights)
     onmt_decoder.cuda()
     if args.data_type == 'fp16':
@@ -120,24 +116,25 @@ def main():
             if args.data_type == 'fp16':
                 epsilon = 1e-3
             diff = torch.abs((output1 - output2) / (output1 + epsilon))
-            
-            print('step: {}     Mean relative diff: {}     Max relative diff: {}     Min relative diff: {}'.format(
-                i, torch.mean(diff), torch.max(diff), torch.min(diff)))
+
+            print(
+                f'step: {i}     Mean relative diff: {torch.mean(diff)}     Max relative diff: {torch.max(diff)}     Min relative diff: {torch.min(diff)}'
+            )
             output2 = output1
 
         if args.time:
             iterations = 10
 
-            for i in range(iterations):
+            for _ in range(iterations):
                 cache = init_onmt_cache(args.layer_num, mem)
                 output1 = inp
-                for i in range(step):
+                for _ in range(step):
                     output1 = onmt_decoder(output1, mem, src_pad_mask, cache, 0)
             t10 = timeit.default_timer()
-            for i in range(iterations):
+            for _ in range(iterations):
                 cache = init_onmt_cache(args.layer_num, mem)
                 output1 = inp
-                for i in range(step):
+                for _ in range(step):
                     output1 = onmt_decoder(output1, mem, src_pad_mask, cache, 0)
             t1 = timeit.default_timer() - t10
 

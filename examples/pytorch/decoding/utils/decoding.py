@@ -29,7 +29,7 @@ from onmt.utils.misc import tile, sequence_mask
 import os
 import sys
 dir_path = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(dir_path + "/../../../..")
+sys.path.append(f"{dir_path}/../../../..")
 
 from examples.pytorch.decoder.utils.ft_decoder import FTDecoder, FtDecoderWeights
 
@@ -39,9 +39,9 @@ to_torch_type = {'fp32' : torch.float32, 'fp16' : torch.float16, 'bf16' : torch.
 
 def get_op_cache_config(size_per_head, is_fp32):
     x = 4 if is_fp32 else 8
-    use_batch_major_op_cache = True if USE_CACHE_BATCH_MAJOR_ATTENTION == True and \
-                                       size_per_head % x == 0 \
-                                    else False
+    use_batch_major_op_cache = (
+        USE_CACHE_BATCH_MAJOR_ATTENTION == True and size_per_head % x == 0
+    )
     x = x if use_batch_major_op_cache else 1
     return use_batch_major_op_cache, x
 
@@ -50,54 +50,95 @@ class DecodingWeights(object):
     def __init__(self, layer_num, hidden_dim, vocab_size, onmtcheckpoint=None, max_step_for_pe=2048):
         self.hidden_dim = hidden_dim
         self.max_step_for_pe = max_step_for_pe
+        self.w = {}
         # self.w = []
         if onmtcheckpoint:
-            self.w = {}
             for key in onmtcheckpoint:
-                if key == 'model' or key == 'generator':
+                if key in ['model', 'generator']:
                     self.w[key] = onmtcheckpoint[key]
         else:
-            self.w = {}
             self.w['model'] = {}
             self.w['generator'] = {}
             for i in range(layer_num):
-                prefix = 'decoder.transformer_layers.' + str(i)
-                self.w['model'][prefix + '.layer_norm_1.weight'] = torch.zeros(hidden_dim)   # self_layernorm_gamma
-                self.w['model'][prefix + '.layer_norm_1.bias'] = torch.zeros(hidden_dim)   # self_layernorm_beta
-                self.w['model'][prefix + '.self_attn.linear_query.weight'] = torch.zeros(hidden_dim, hidden_dim)   # self_kernel_q
-                self.w['model'][prefix + '.self_attn.linear_keys.weight'] = torch.zeros(hidden_dim, hidden_dim)   # self_kernel_k
-                self.w['model'][prefix + '.self_attn.linear_values.weight'] = torch.zeros(hidden_dim, hidden_dim)   # self_kernel_v
-                self.w['model'][prefix + '.self_attn.linear_query.bias'] = torch.zeros(hidden_dim)   # self_bias_q
-                self.w['model'][prefix + '.self_attn.linear_keys.bias'] = torch.zeros(hidden_dim)   # self_bias_k
-                self.w['model'][prefix + '.self_attn.linear_values.bias'] = torch.zeros(hidden_dim)   # self_bias_v
-                self.w['model'][prefix + '.self_attn.final_linear.weight'] = torch.zeros(hidden_dim, hidden_dim)   # self_output_kernel
-                self.w['model'][prefix + '.self_attn.final_linear.bias'] = torch.zeros(hidden_dim)   # self_output_bias
-                self.w['model'][prefix + '.layer_norm_2.weight'] = torch.zeros(hidden_dim)   # cross_layernorm_gamma
-                self.w['model'][prefix + '.layer_norm_2.bias'] = torch.zeros(hidden_dim)   # cross_layernorm_beta
-                self.w['model'][prefix + '.context_attn.linear_query.weight'] = torch.zeros(hidden_dim, hidden_dim)   # cross_kernel_q
-                self.w['model'][prefix + '.context_attn.linear_keys.weight'] = torch.zeros(hidden_dim, hidden_dim)   # cross_kernel_k
-                self.w['model'][prefix + '.context_attn.linear_values.weight'] = torch.zeros(hidden_dim, hidden_dim)   # cross_kernel_v
-                self.w['model'][prefix + '.context_attn.linear_query.bias'] = torch.zeros(hidden_dim)   # cross_bias_q
-                self.w['model'][prefix + '.context_attn.linear_keys.bias'] = torch.zeros(hidden_dim)   # cross_bias_k
-                self.w['model'][prefix + '.context_attn.linear_values.bias'] = torch.zeros(hidden_dim)   # cross_bias_v
-                self.w['model'][prefix + '.context_attn.final_linear.weight'] = torch.zeros(hidden_dim, hidden_dim)   # cross_output_kernel
-                self.w['model'][prefix + '.context_attn.final_linear.bias'] = torch.zeros(hidden_dim)   # cross_output_bias
-                self.w['model'][prefix + '.feed_forward.layer_norm.weight'] = torch.zeros(hidden_dim)   # ffn_layernorm_gamma
-                self.w['model'][prefix + '.feed_forward.layer_norm.bias'] = torch.zeros(hidden_dim)   # ffn_layernorm_beta
-                self.w['model'][prefix + '.feed_forward.w_1.weight'] = torch.zeros(4 * hidden_dim, hidden_dim)   # inter_kernel
-                self.w['model'][prefix + '.feed_forward.w_1.bias'] = torch.zeros(4 * hidden_dim)   # inter_bias
-                self.w['model'][prefix + '.feed_forward.w_2.weight'] = torch.zeros(hidden_dim, 4 * hidden_dim)   # output_kernel
-                self.w['model'][prefix + '.feed_forward.w_2.bias'] = torch.zeros(hidden_dim)   # output_bias
-            
+                prefix = f'decoder.transformer_layers.{str(i)}'
+                self.w['model'][f'{prefix}.layer_norm_1.weight'] = torch.zeros(hidden_dim)
+                self.w['model'][f'{prefix}.layer_norm_1.bias'] = torch.zeros(hidden_dim)
+                self.w['model'][
+                    f'{prefix}.self_attn.linear_query.weight'
+                ] = torch.zeros(hidden_dim, hidden_dim)
+                self.w['model'][
+                    f'{prefix}.self_attn.linear_keys.weight'
+                ] = torch.zeros(hidden_dim, hidden_dim)
+                self.w['model'][
+                    f'{prefix}.self_attn.linear_values.weight'
+                ] = torch.zeros(hidden_dim, hidden_dim)
+                self.w['model'][
+                    f'{prefix}.self_attn.linear_query.bias'
+                ] = torch.zeros(hidden_dim)
+                self.w['model'][
+                    f'{prefix}.self_attn.linear_keys.bias'
+                ] = torch.zeros(hidden_dim)
+                self.w['model'][
+                    f'{prefix}.self_attn.linear_values.bias'
+                ] = torch.zeros(hidden_dim)
+                self.w['model'][
+                    f'{prefix}.self_attn.final_linear.weight'
+                ] = torch.zeros(hidden_dim, hidden_dim)
+                self.w['model'][
+                    f'{prefix}.self_attn.final_linear.bias'
+                ] = torch.zeros(hidden_dim)
+                self.w['model'][f'{prefix}.layer_norm_2.weight'] = torch.zeros(hidden_dim)
+                self.w['model'][f'{prefix}.layer_norm_2.bias'] = torch.zeros(hidden_dim)
+                self.w['model'][
+                    f'{prefix}.context_attn.linear_query.weight'
+                ] = torch.zeros(hidden_dim, hidden_dim)
+                self.w['model'][
+                    f'{prefix}.context_attn.linear_keys.weight'
+                ] = torch.zeros(hidden_dim, hidden_dim)
+                self.w['model'][
+                    f'{prefix}.context_attn.linear_values.weight'
+                ] = torch.zeros(hidden_dim, hidden_dim)
+                self.w['model'][
+                    f'{prefix}.context_attn.linear_query.bias'
+                ] = torch.zeros(hidden_dim)
+                self.w['model'][
+                    f'{prefix}.context_attn.linear_keys.bias'
+                ] = torch.zeros(hidden_dim)
+                self.w['model'][
+                    f'{prefix}.context_attn.linear_values.bias'
+                ] = torch.zeros(hidden_dim)
+                self.w['model'][
+                    f'{prefix}.context_attn.final_linear.weight'
+                ] = torch.zeros(hidden_dim, hidden_dim)
+                self.w['model'][
+                    f'{prefix}.context_attn.final_linear.bias'
+                ] = torch.zeros(hidden_dim)
+                self.w['model'][
+                    f'{prefix}.feed_forward.layer_norm.weight'
+                ] = torch.zeros(hidden_dim)
+                self.w['model'][
+                    f'{prefix}.feed_forward.layer_norm.bias'
+                ] = torch.zeros(hidden_dim)
+                self.w['model'][f'{prefix}.feed_forward.w_1.weight'] = torch.zeros(
+                    4 * hidden_dim, hidden_dim
+                )
+                self.w['model'][f'{prefix}.feed_forward.w_1.bias'] = torch.zeros(
+                    4 * hidden_dim
+                )
+                self.w['model'][f'{prefix}.feed_forward.w_2.weight'] = torch.zeros(
+                    hidden_dim, 4 * hidden_dim
+                )
+                self.w['model'][f'{prefix}.feed_forward.w_2.bias'] = torch.zeros(hidden_dim)
+
             self.w['model']['decoder.layer_norm.weight'] = torch.zeros(hidden_dim)   # decoding_gamma
             self.w['model']['decoder.layer_norm.bias'] = torch.zeros(hidden_dim)   # decoding_beta
             self.w['model']['decoder.embeddings.make_embedding.emb_luts.0.weight'] = torch.zeros(vocab_size, hidden_dim)   # embedding_table
 
             self.w['generator']['0.weight'] = torch.zeros(vocab_size, hidden_dim)
             self.w['generator']['0.bias'] = torch.zeros(vocab_size)
-            
-            for key in self.w:
-                if isinstance(self.w[key], dict):
+
+            for key, value in self.w.items():
+                if isinstance(value, dict):
                     for next_key in self.w[key]:
                         torch.nn.init.uniform_(self.w[key][next_key], -0.5, 0.5)
                 else:
@@ -243,7 +284,7 @@ class TransformerDecoder(DecoderBase):
         # relevant to custom cache config
         # self.use_batch_major_op_cache = False
         # self.op_cache_dim_x = 1
-        self.is_fp32 = True if self.args.data_type == 'fp32' else False
+        self.is_fp32 = self.args.data_type == 'fp32'
         self.use_batch_major_op_cache, self.op_cache_dim_x = get_op_cache_config(head_size, self.is_fp32)
         self.head_num = heads
         self.size_per_head = head_size
@@ -252,13 +293,22 @@ class TransformerDecoder(DecoderBase):
         self.state = {}
 
         self.transformer_layers = nn.ModuleList(
-            [TransformerDecoderLayer(d_model, heads, d_ff, dropout,
-             attention_dropout, self_attn_type=self_attn_type,
-             max_relative_positions=max_relative_positions,
-             aan_useffn=aan_useffn,
-             full_context_alignment=full_context_alignment,
-             alignment_heads=alignment_heads)
-             for i in range(num_layers)])
+            [
+                TransformerDecoderLayer(
+                    d_model,
+                    heads,
+                    d_ff,
+                    dropout,
+                    attention_dropout,
+                    self_attn_type=self_attn_type,
+                    max_relative_positions=max_relative_positions,
+                    aan_useffn=aan_useffn,
+                    full_context_alignment=full_context_alignment,
+                    alignment_heads=alignment_heads,
+                )
+                for _ in range(num_layers)
+            ]
+        )
 
         # previously, there was a GlobalAttention module here for copy
         # attention. But it was never actually used -- the "copy" attention
@@ -308,14 +358,20 @@ class TransformerDecoder(DecoderBase):
                             struct[k] = [fn(vv, batch_dim_) for vv in struct[k]]
                         else:
                             struct[k] = fn(v, batch_dim)
+
         self.state["src"] = fn(self.state["src"], 1)
-        if self.args.model_type == 'ori' or self.args.model_type == 'torch_decoding':
-            if self.state["cache"] is not None:
-                _recursive_map(self.state["cache"], 0)
-        if self.args.model_type == 'decoder_ext' or self.args.model_type == 'torch_decoding_with_decoder_ext':
-            if self.state["cache"] is not None:
-                self.state["cache"]["self"][0] = fn(self.state["cache"]["self"][0], 1)
-                self.state["cache"]["self"][1] = fn(self.state["cache"]["self"][1], 1)
+        if (
+            self.args.model_type in ['ori', 'torch_decoding']
+            and self.state["cache"] is not None
+        ):
+            _recursive_map(self.state["cache"], 0)
+        if (
+            self.args.model_type
+            in ['decoder_ext', 'torch_decoding_with_decoder_ext']
+            and self.state["cache"] is not None
+        ):
+            self.state["cache"]["self"][0] = fn(self.state["cache"]["self"][0], 1)
+            self.state["cache"]["self"][1] = fn(self.state["cache"]["self"][1], 1)
 
     def detach_state(self):
         self.state["src"] = self.state["src"].detach()
@@ -337,7 +393,7 @@ class TransformerDecoder(DecoderBase):
         pad_idx = self.embeddings.word_padding_idx
         src_lens = kwargs["memory_lengths"]
 
-        if self.args.model_type == 'ori' or self.args.model_type == 'torch_decoding':
+        if self.args.model_type in ['ori', 'torch_decoding']:
             src_max_len = self.state["src"].shape[0]
             src_pad_mask = ~sequence_mask(src_lens, src_max_len).unsqueeze(1)
             tgt_pad_mask = tgt_words.data.eq(pad_idx).unsqueeze(1)  # [B, 1, T_tgt]
@@ -346,8 +402,7 @@ class TransformerDecoder(DecoderBase):
             attn_aligns = []
 
             for i, layer in enumerate(self.transformer_layers):
-                layer_cache = self.state["cache"]["layer_{}".format(i)] \
-                    if step is not None else None
+                layer_cache = self.state["cache"][f"layer_{i}"] if step is not None else None
                 output, attn, attn_align = layer(
                     output,
                     src_memory_bank,
@@ -358,7 +413,10 @@ class TransformerDecoder(DecoderBase):
                     with_align=with_align)
                 if attn_align is not None:
                     attn_aligns.append(attn_align)
-        elif self.args.model_type == 'decoder_ext' or self.args.model_type == 'torch_decoding_with_decoder_ext':
+        elif self.args.model_type in [
+            'decoder_ext',
+            'torch_decoding_with_decoder_ext',
+        ]:
             src_lens_ = src_lens.to(torch.int)
             output, self_cache_, mem_cache_ = self.transformer_layers[0](output, src_memory_bank, src_lens_,
                                                                          self.state["cache"]['self'], self.state["cache"]['mem'],
@@ -386,7 +444,7 @@ class TransformerDecoder(DecoderBase):
         batch_size = memory_bank.size(1)
         depth = memory_bank.size(-1)
 
-        if self.args.model_type == 'ori' or self.args.model_type == 'torch_decoding':
+        if self.args.model_type in ['ori', 'torch_decoding']:
             for i, layer in enumerate(self.transformer_layers):
                 layer_cache = {"memory_keys": None, "memory_values": None}
                 if isinstance(layer.self_attn, AverageAttention):
@@ -395,8 +453,11 @@ class TransformerDecoder(DecoderBase):
                 else:
                     layer_cache["self_keys"] = None
                     layer_cache["self_values"] = None
-                self.state["cache"]["layer_{}".format(i)] = layer_cache
-        elif self.args.model_type == 'decoder_ext' or self.args.model_type == 'torch_decoding_with_decoder_ext':
+                self.state["cache"][f"layer_{i}"] = layer_cache
+        elif self.args.model_type in [
+            'decoder_ext',
+            'torch_decoding_with_decoder_ext',
+        ]:
             max_seq_len = memory_bank.size(0)
             dtype = to_torch_type[self.args.data_type]
             self.state['cache']['mem'] = [torch.zeros(self.transformer_layers[0].layer_num, batch_size, max_seq_len, depth, dtype=dtype, device='cuda'),
@@ -438,33 +499,137 @@ class TorchDecoding(nn.Module):
         self.logsoftmax = nn.LogSoftmax(dim=-1)
         if args.model_type == 'torch_decoding':
             for i in range(layer_num):
-                prefix = 'decoder.transformer_layers.' + str(i)
-                self.decoder.transformer_layers[i].layer_norm_1.weight.data = weights.w['model'][prefix + '.layer_norm_1.weight']
-                self.decoder.transformer_layers[i].layer_norm_1.bias.data = weights.w['model'][prefix + '.layer_norm_1.bias']
-                self.decoder.transformer_layers[i].self_attn.linear_query.weight.data = weights.w['model'][prefix + '.self_attn.linear_query.weight']
-                self.decoder.transformer_layers[i].self_attn.linear_keys.weight.data = weights.w['model'][prefix + '.self_attn.linear_keys.weight']
-                self.decoder.transformer_layers[i].self_attn.linear_values.weight.data = weights.w['model'][prefix + '.self_attn.linear_values.weight']
-                self.decoder.transformer_layers[i].self_attn.linear_query.bias.data = weights.w['model'][prefix + '.self_attn.linear_query.bias']
-                self.decoder.transformer_layers[i].self_attn.linear_keys.bias.data = weights.w['model'][prefix + '.self_attn.linear_keys.bias']
-                self.decoder.transformer_layers[i].self_attn.linear_values.bias.data = weights.w['model'][prefix + '.self_attn.linear_values.bias']
-                self.decoder.transformer_layers[i].self_attn.final_linear.weight.data = weights.w['model'][prefix + '.self_attn.final_linear.weight']
-                self.decoder.transformer_layers[i].self_attn.final_linear.bias.data = weights.w['model'][prefix + '.self_attn.final_linear.bias']
-                self.decoder.transformer_layers[i].layer_norm_2.weight.data = weights.w['model'][prefix + '.layer_norm_2.weight']
-                self.decoder.transformer_layers[i].layer_norm_2.bias.data = weights.w['model'][prefix + '.layer_norm_2.bias']
-                self.decoder.transformer_layers[i].context_attn.linear_query.weight.data = weights.w['model'][prefix + '.context_attn.linear_query.weight']
-                self.decoder.transformer_layers[i].context_attn.linear_keys.weight.data = weights.w['model'][prefix + '.context_attn.linear_keys.weight']
-                self.decoder.transformer_layers[i].context_attn.linear_values.weight.data = weights.w['model'][prefix + '.context_attn.linear_values.weight']
-                self.decoder.transformer_layers[i].context_attn.linear_query.bias.data = weights.w['model'][prefix + '.context_attn.linear_query.bias']
-                self.decoder.transformer_layers[i].context_attn.linear_keys.bias.data = weights.w['model'][prefix + '.context_attn.linear_keys.bias']
-                self.decoder.transformer_layers[i].context_attn.linear_values.bias.data = weights.w['model'][prefix + '.context_attn.linear_values.bias']
-                self.decoder.transformer_layers[i].context_attn.final_linear.weight.data = weights.w['model'][prefix + '.context_attn.final_linear.weight']
-                self.decoder.transformer_layers[i].context_attn.final_linear.bias.data = weights.w['model'][prefix + '.context_attn.final_linear.bias']
-                self.decoder.transformer_layers[i].feed_forward.layer_norm.weight.data = weights.w['model'][prefix + '.feed_forward.layer_norm.weight']
-                self.decoder.transformer_layers[i].feed_forward.layer_norm.bias.data = weights.w['model'][prefix + '.feed_forward.layer_norm.bias']
-                self.decoder.transformer_layers[i].feed_forward.w_1.weight.data = weights.w['model'][prefix + '.feed_forward.w_1.weight']
-                self.decoder.transformer_layers[i].feed_forward.w_1.bias.data = weights.w['model'][prefix + '.feed_forward.w_1.bias']
-                self.decoder.transformer_layers[i].feed_forward.w_2.weight.data = weights.w['model'][prefix + '.feed_forward.w_2.weight']
-                self.decoder.transformer_layers[i].feed_forward.w_2.bias.data = weights.w['model'][prefix + '.feed_forward.w_2.bias']
+                prefix = f'decoder.transformer_layers.{str(i)}'
+                self.decoder.transformer_layers[
+                    i
+                ].layer_norm_1.weight.data = weights.w['model'][
+                    f'{prefix}.layer_norm_1.weight'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].layer_norm_1.bias.data = weights.w['model'][
+                    f'{prefix}.layer_norm_1.bias'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].self_attn.linear_query.weight.data = weights.w['model'][
+                    f'{prefix}.self_attn.linear_query.weight'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].self_attn.linear_keys.weight.data = weights.w['model'][
+                    f'{prefix}.self_attn.linear_keys.weight'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].self_attn.linear_values.weight.data = weights.w['model'][
+                    f'{prefix}.self_attn.linear_values.weight'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].self_attn.linear_query.bias.data = weights.w['model'][
+                    f'{prefix}.self_attn.linear_query.bias'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].self_attn.linear_keys.bias.data = weights.w['model'][
+                    f'{prefix}.self_attn.linear_keys.bias'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].self_attn.linear_values.bias.data = weights.w['model'][
+                    f'{prefix}.self_attn.linear_values.bias'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].self_attn.final_linear.weight.data = weights.w['model'][
+                    f'{prefix}.self_attn.final_linear.weight'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].self_attn.final_linear.bias.data = weights.w['model'][
+                    f'{prefix}.self_attn.final_linear.bias'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].layer_norm_2.weight.data = weights.w['model'][
+                    f'{prefix}.layer_norm_2.weight'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].layer_norm_2.bias.data = weights.w['model'][
+                    f'{prefix}.layer_norm_2.bias'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].context_attn.linear_query.weight.data = weights.w['model'][
+                    f'{prefix}.context_attn.linear_query.weight'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].context_attn.linear_keys.weight.data = weights.w['model'][
+                    f'{prefix}.context_attn.linear_keys.weight'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].context_attn.linear_values.weight.data = weights.w['model'][
+                    f'{prefix}.context_attn.linear_values.weight'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].context_attn.linear_query.bias.data = weights.w['model'][
+                    f'{prefix}.context_attn.linear_query.bias'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].context_attn.linear_keys.bias.data = weights.w['model'][
+                    f'{prefix}.context_attn.linear_keys.bias'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].context_attn.linear_values.bias.data = weights.w['model'][
+                    f'{prefix}.context_attn.linear_values.bias'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].context_attn.final_linear.weight.data = weights.w['model'][
+                    f'{prefix}.context_attn.final_linear.weight'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].context_attn.final_linear.bias.data = weights.w['model'][
+                    f'{prefix}.context_attn.final_linear.bias'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].feed_forward.layer_norm.weight.data = weights.w['model'][
+                    f'{prefix}.feed_forward.layer_norm.weight'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].feed_forward.layer_norm.bias.data = weights.w['model'][
+                    f'{prefix}.feed_forward.layer_norm.bias'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].feed_forward.w_1.weight.data = weights.w['model'][
+                    f'{prefix}.feed_forward.w_1.weight'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].feed_forward.w_1.bias.data = weights.w['model'][
+                    f'{prefix}.feed_forward.w_1.bias'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].feed_forward.w_2.weight.data = weights.w['model'][
+                    f'{prefix}.feed_forward.w_2.weight'
+                ]
+                self.decoder.transformer_layers[
+                    i
+                ].feed_forward.w_2.bias.data = weights.w['model'][
+                    f'{prefix}.feed_forward.w_2.bias'
+                ]
         elif args.model_type == 'torch_decoding_with_decoder_ext':
             w = []
             ft_decoder_weights = FtDecoderWeights(layer_num, self.hidden_dim, weights.w)

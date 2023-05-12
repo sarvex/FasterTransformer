@@ -25,26 +25,24 @@ def add_special_tokens_to_tokenizer(tokenizer):
         tokenizer.add_special_tokens({'mask_token': '<mask>'})
 
     # bos, eos, pad and unk may be present in the provided spm .model file, if they are, use it.
-    if not hasattr(tokenizer, 'pad_token'):
-        if hasattr(tokenizer.tokenizer, 'pad_id') and tokenizer.tokenizer.pad_id() > 0:
-            tokenizer.pad_token = tokenizer.tokenizer.id_to_piece(tokenizer.tokenizer.pad_id())
-        else:
-            tokenizer.add_special_tokens({'pad_token': '<pad>'})
-    else:
+    if hasattr(tokenizer, 'pad_token'):
         tokenizer.add_special_tokens({'pad_token': '<pad>'})
 
-    if not hasattr(tokenizer, 'bos_token'):
-        if hasattr(tokenizer.tokenizer, 'bos_id') and tokenizer.tokenizer.bos_id() > 0:
-            tokenizer.bos_token = tokenizer.tokenizer.id_to_piece(tokenizer.tokenizer.bos_id())
-        else:
-            tokenizer.add_special_tokens({'bos_token': '<bos>'})
+    elif hasattr(tokenizer.tokenizer, 'pad_id') and tokenizer.tokenizer.pad_id() > 0:
+        tokenizer.pad_token = tokenizer.tokenizer.id_to_piece(tokenizer.tokenizer.pad_id())
     else:
+        tokenizer.add_special_tokens({'pad_token': '<pad>'})
+    if hasattr(tokenizer, 'bos_token'):
         tokenizer.add_special_tokens({'bos_token': '<s>'})
 
-    if not hasattr(tokenizer, 'eos_token'):
-        if hasattr(tokenizer.tokenizer, 'eos_id') and tokenizer.tokenizer.eos_id() > 0:
-            tokenizer.eos_token = tokenizer.tokenizer.id_to_piece(tokenizer.tokenizer.eos_id())
-        else:
-            tokenizer.add_special_tokens({'eos_token': '<eos>'})
+    elif hasattr(tokenizer.tokenizer, 'bos_id') and tokenizer.tokenizer.bos_id() > 0:
+        tokenizer.bos_token = tokenizer.tokenizer.id_to_piece(tokenizer.tokenizer.bos_id())
     else:
+        tokenizer.add_special_tokens({'bos_token': '<bos>'})
+    if hasattr(tokenizer, 'eos_token'):
         tokenizer.add_special_tokens({'eos_token': '</s>'})
+
+    elif hasattr(tokenizer.tokenizer, 'eos_id') and tokenizer.tokenizer.eos_id() > 0:
+        tokenizer.eos_token = tokenizer.tokenizer.id_to_piece(tokenizer.tokenizer.eos_id())
+    else:
+        tokenizer.add_special_tokens({'eos_token': '<eos>'})

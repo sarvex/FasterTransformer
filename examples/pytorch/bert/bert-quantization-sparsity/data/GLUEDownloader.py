@@ -24,7 +24,7 @@ def mkdir(path):
 class GLUEDownloader:
 
     def __init__(self, save_path):
-        self.save_path = save_path + '/glue'
+        self.save_path = f'{save_path}/glue'
 
     def download(self, task_name):
         mkdir(self.save_path)

@@ -58,23 +58,37 @@ class EncoderWeights(object):
         if weights is None:
             self._generated_weights = True
             for i in range(layer_num):
-                pre = 'bert.encoder.layer.' + str(i) + '.'
-                self.weights[pre + 'attention.self.query.weight'] = torch.zeros(hidden_dim, hidden_dim)
-                self.weights[pre + 'attention.self.query.bias'] = torch.zeros(hidden_dim)
-                self.weights[pre + 'attention.self.key.weight'] = torch.zeros(hidden_dim, hidden_dim)
-                self.weights[pre + 'attention.self.key.bias'] = torch.zeros(hidden_dim)
-                self.weights[pre + 'attention.self.value.weight'] = torch.zeros(hidden_dim, hidden_dim)
-                self.weights[pre + 'attention.self.value.bias'] = torch.zeros(hidden_dim)
-                self.weights[pre + 'attention.output.dense.weight'] = torch.zeros(hidden_dim, hidden_dim)
-                self.weights[pre + 'attention.output.dense.bias'] = torch.zeros(hidden_dim)
-                self.weights[pre + 'attention.output.LayerNorm.weight'] = torch.zeros(hidden_dim)
-                self.weights[pre + 'attention.output.LayerNorm.bias'] = torch.zeros(hidden_dim)
-                self.weights[pre + 'intermediate.dense.weight'] = torch.zeros(4 * hidden_dim, hidden_dim)
-                self.weights[pre + 'intermediate.dense.bias'] = torch.zeros(4 * hidden_dim)
-                self.weights[pre + 'output.dense.weight'] = torch.zeros(hidden_dim, 4 * hidden_dim)
-                self.weights[pre + 'output.dense.bias'] = torch.zeros(hidden_dim)
-                self.weights[pre + 'output.LayerNorm.weight'] = torch.zeros(hidden_dim)
-                self.weights[pre + 'output.LayerNorm.bias'] = torch.zeros(hidden_dim)
+                pre = f'bert.encoder.layer.{str(i)}.'
+                self.weights[f'{pre}attention.self.query.weight'] = torch.zeros(
+                    hidden_dim, hidden_dim
+                )
+                self.weights[f'{pre}attention.self.query.bias'] = torch.zeros(hidden_dim)
+                self.weights[f'{pre}attention.self.key.weight'] = torch.zeros(
+                    hidden_dim, hidden_dim
+                )
+                self.weights[f'{pre}attention.self.key.bias'] = torch.zeros(hidden_dim)
+                self.weights[f'{pre}attention.self.value.weight'] = torch.zeros(
+                    hidden_dim, hidden_dim
+                )
+                self.weights[f'{pre}attention.self.value.bias'] = torch.zeros(hidden_dim)
+                self.weights[f'{pre}attention.output.dense.weight'] = torch.zeros(
+                    hidden_dim, hidden_dim
+                )
+                self.weights[f'{pre}attention.output.dense.bias'] = torch.zeros(hidden_dim)
+                self.weights[
+                    f'{pre}attention.output.LayerNorm.weight'
+                ] = torch.zeros(hidden_dim)
+                self.weights[f'{pre}attention.output.LayerNorm.bias'] = torch.zeros(hidden_dim)
+                self.weights[f'{pre}intermediate.dense.weight'] = torch.zeros(
+                    4 * hidden_dim, hidden_dim
+                )
+                self.weights[f'{pre}intermediate.dense.bias'] = torch.zeros(4 * hidden_dim)
+                self.weights[f'{pre}output.dense.weight'] = torch.zeros(
+                    hidden_dim, 4 * hidden_dim
+                )
+                self.weights[f'{pre}output.dense.bias'] = torch.zeros(hidden_dim)
+                self.weights[f'{pre}output.LayerNorm.weight'] = torch.zeros(hidden_dim)
+                self.weights[f'{pre}output.LayerNorm.bias'] = torch.zeros(hidden_dim)
             for k, v in self.weights.items():
                 if not k.endswith('_amax'):
                     self.weights[k] = torch.nn.init.uniform_(v, -1, 1)

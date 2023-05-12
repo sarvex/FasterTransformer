@@ -87,9 +87,7 @@ class BertModel(BertPreTrainedModel):
                 extended_attention_mask = attention_mask[:, None, None, :]
             else:
                 raise ValueError(
-                    "Wrong shape for input_ids (shape {}) or attention_mask (shape {})".format(
-                        input_shape, attention_mask.shape
-                    )
+                    f"Wrong shape for input_ids (shape {input_shape}) or attention_mask (shape {attention_mask.shape})"
                 )
             # Since attention_mask is 1.0 for positions we want to attend and 0.0 for
             # masked positions, this operation will create a tensor which is 0.0 for
@@ -111,14 +109,14 @@ class BertModel(BertPreTrainedModel):
                 attention_mask=extended_attention_mask,
                 head_mask=head_mask,
             )
-            
+
         sequence_output = encoder_outputs[0]
         pooled_output = self.pooler(sequence_output)
 
-        outputs = (sequence_output, pooled_output,) + encoder_outputs[
-            1:
-        ]  # add hidden_states and attentions if they are here
-        return outputs  # sequence_output, pooled_output, (hidden_states), (attentions)
+        return (
+            sequence_output,
+            pooled_output,
+        ) + encoder_outputs[1:]
 
 
 class BertForQuestionAnswering(BertPreTrainedModel):

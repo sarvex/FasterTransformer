@@ -34,17 +34,15 @@ def main(args):
     if args.input_files:
         args.input_files = args.input_files.split(',')
 
-    hdf5_tfrecord_folder_prefix = "_lower_case_" + str(args.do_lower_case) + "_seq_len_" + str(args.max_seq_length) \
-                                  + "_max_pred_" + str(args.max_predictions_per_seq) + "_masked_lm_prob_" + str(args.masked_lm_prob) \
-                                  + "_random_seed_" + str(args.random_seed) + "_dupe_factor_" + str(args.dupe_factor)
+    hdf5_tfrecord_folder_prefix = f"_lower_case_{str(args.do_lower_case)}_seq_len_{str(args.max_seq_length)}_max_pred_{str(args.max_predictions_per_seq)}_masked_lm_prob_{str(args.masked_lm_prob)}_random_seed_{str(args.random_seed)}_dupe_factor_{str(args.dupe_factor)}"
 
     directory_structure = {
-        'download' : working_dir + '/download',    # Downloaded and decompressed
-        'extracted' : working_dir +'/extracted',    # Extracted from whatever the initial format is (e.g., wikiextractor)
-        'formatted' : working_dir + '/formatted_one_article_per_line',    # This is the level where all sources should look the same
-        'sharded' : working_dir + '/sharded_' + "training_shards_" + str(args.n_training_shards) + "_test_shards_" + str(args.n_test_shards) + "_fraction_" + str(args.fraction_test_set),
-        'tfrecord' : working_dir + '/tfrecord'+ hdf5_tfrecord_folder_prefix,
-        'hdf5': working_dir + '/hdf5' + hdf5_tfrecord_folder_prefix
+        'download': f'{working_dir}/download',
+        'extracted': f'{working_dir}/extracted',
+        'formatted': f'{working_dir}/formatted_one_article_per_line',
+        'sharded': f'{working_dir}/sharded_training_shards_{str(args.n_training_shards)}_test_shards_{str(args.n_test_shards)}_fraction_{str(args.fraction_test_set)}',
+        'tfrecord': f'{working_dir}/tfrecord{hdf5_tfrecord_folder_prefix}',
+        'hdf5': f'{working_dir}/hdf5{hdf5_tfrecord_folder_prefix}',
     }
 
     print('\nDirectory Structure:')
@@ -60,7 +58,12 @@ def main(args):
         downloader.download()
 
     elif args.action == 'text_formatting':
-        assert args.dataset != 'google_pretrained_weights' and args.dataset != 'nvidia_pretrained_weights' and args.dataset != 'squad' and args.dataset != 'mrpc', 'Cannot perform text_formatting on pretrained weights'
+        assert args.dataset not in [
+            'google_pretrained_weights',
+            'nvidia_pretrained_weights',
+            'squad',
+            'mrpc',
+        ], 'Cannot perform text_formatting on pretrained weights'
 
         if not os.path.exists(directory_structure['extracted']):
             os.makedirs(directory_structure['extracted'])
@@ -78,10 +81,22 @@ def main(args):
         elif args.dataset == 'wikicorpus_en':
             if args.skip_wikiextractor == 0:
                 path_to_wikiextractor_in_container = '/workspace/wikiextractor/WikiExtractor.py'
-                wikiextractor_command = path_to_wikiextractor_in_container + ' ' + directory_structure['download'] + '/' + args.dataset + '/wikicorpus_en.xml ' + '-b 100M --processes ' + str(args.n_processes) + ' -o ' + directory_structure['extracted'] + '/' + args.dataset
+                wikiextractor_command = (
+                    f'{path_to_wikiextractor_in_container} '
+                    + directory_structure['download']
+                    + '/'
+                    + args.dataset
+                    + '/wikicorpus_en.xml '
+                    + '-b 100M --processes '
+                    + str(args.n_processes)
+                    + ' -o '
+                    + directory_structure['extracted']
+                    + '/'
+                    + args.dataset
+                )
                 print('WikiExtractor Command:', wikiextractor_command)
                 wikiextractor_process = subprocess.run(wikiextractor_command, shell=True, check=True)
-                #wikiextractor_process.communicate()
+                            #wikiextractor_process.communicate()
 
             wiki_path = directory_structure['extracted'] + '/wikicorpus_en'
             output_filename = directory_structure['formatted'] + '/wikicorpus_en_one_article_per_line.txt'
@@ -92,10 +107,22 @@ def main(args):
             assert False, 'wikicorpus_zh not fully supported at this time. The simplified/tradition Chinese data needs to be translated and properly segmented still, and should work once this step is added.'
             if args.skip_wikiextractor == 0:
                 path_to_wikiextractor_in_container = '/workspace/wikiextractor/WikiExtractor.py'
-                wikiextractor_command = path_to_wikiextractor_in_container + ' ' + directory_structure['download'] + '/' + args.dataset + '/wikicorpus_zh.xml ' + '-b 100M --processes ' + str(args.n_processes) + ' -o ' + directory_structure['extracted'] + '/' + args.dataset
+                wikiextractor_command = (
+                    f'{path_to_wikiextractor_in_container} '
+                    + directory_structure['download']
+                    + '/'
+                    + args.dataset
+                    + '/wikicorpus_zh.xml '
+                    + '-b 100M --processes '
+                    + str(args.n_processes)
+                    + ' -o '
+                    + directory_structure['extracted']
+                    + '/'
+                    + args.dataset
+                )
                 print('WikiExtractor Command:', wikiextractor_command)
                 wikiextractor_process = subprocess.run(wikiextractor_command, shell=True, check=True)
-                #wikiextractor_process.communicate()
+                            #wikiextractor_process.communicate()
 
             wiki_path = directory_structure['extracted'] + '/wikicorpus_zh'
             output_filename = directory_structure['formatted'] + '/wikicorpus_zh_one_article_per_line.txt'
@@ -150,13 +177,13 @@ def main(args):
             bert_preprocessing_command = 'python /workspace/bert/create_pretraining_data.py'
             bert_preprocessing_command += ' --input_file=' + directory_structure['sharded'] + '/' + args.dataset + '/' + filename_prefix + '_' + str(shard_id) + '.txt'
             bert_preprocessing_command += ' --output_file=' + directory_structure['tfrecord'] + '/' + args.dataset + '/' + filename_prefix + '_' + str(shard_id) + '.' + output_format
-            bert_preprocessing_command += ' --vocab_file=' + args.vocab_file
+            bert_preprocessing_command += f' --vocab_file={args.vocab_file}'
             bert_preprocessing_command += ' --do_lower_case' if args.do_lower_case else ''
-            bert_preprocessing_command += ' --max_seq_length=' + str(args.max_seq_length)
-            bert_preprocessing_command += ' --max_predictions_per_seq=' + str(args.max_predictions_per_seq)
-            bert_preprocessing_command += ' --masked_lm_prob=' + str(args.masked_lm_prob)
-            bert_preprocessing_command += ' --random_seed=' + str(args.random_seed)
-            bert_preprocessing_command += ' --dupe_factor=' + str(args.dupe_factor)
+            bert_preprocessing_command += f' --max_seq_length={str(args.max_seq_length)}'
+            bert_preprocessing_command += f' --max_predictions_per_seq={str(args.max_predictions_per_seq)}'
+            bert_preprocessing_command += f' --masked_lm_prob={str(args.masked_lm_prob)}'
+            bert_preprocessing_command += f' --random_seed={str(args.random_seed)}'
+            bert_preprocessing_command += f' --dupe_factor={str(args.dupe_factor)}'
             bert_preprocessing_process = subprocess.Popen(bert_preprocessing_command, shell=True)
 
             last_process = bert_preprocessing_process
@@ -169,12 +196,12 @@ def main(args):
         output_file_prefix = args.dataset
 
         for i in range(args.n_training_shards):
-            last_process =create_record_worker(output_file_prefix + '_training', i)
+            last_process = create_record_worker(f'{output_file_prefix}_training', i)
 
         last_process.wait()
 
         for i in range(args.n_test_shards):
-            last_process = create_record_worker(output_file_prefix + '_test', i)
+            last_process = create_record_worker(f'{output_file_prefix}_test', i)
 
         last_process.wait()
 
@@ -189,13 +216,13 @@ def main(args):
             bert_preprocessing_command = 'python /workspace/bert/create_pretraining_data.py'
             bert_preprocessing_command += ' --input_file=' + directory_structure['sharded'] + '/' + args.dataset + '/' + filename_prefix + '_' + str(shard_id) + '.txt'
             bert_preprocessing_command += ' --output_file=' + directory_structure['hdf5'] + '/' + args.dataset + '/' + filename_prefix + '_' + str(shard_id) + '.' + output_format
-            bert_preprocessing_command += ' --vocab_file=' + args.vocab_file
+            bert_preprocessing_command += f' --vocab_file={args.vocab_file}'
             bert_preprocessing_command += ' --do_lower_case' if args.do_lower_case else ''
-            bert_preprocessing_command += ' --max_seq_length=' + str(args.max_seq_length)
-            bert_preprocessing_command += ' --max_predictions_per_seq=' + str(args.max_predictions_per_seq)
-            bert_preprocessing_command += ' --masked_lm_prob=' + str(args.masked_lm_prob)
-            bert_preprocessing_command += ' --random_seed=' + str(args.random_seed)
-            bert_preprocessing_command += ' --dupe_factor=' + str(args.dupe_factor)
+            bert_preprocessing_command += f' --max_seq_length={str(args.max_seq_length)}'
+            bert_preprocessing_command += f' --max_predictions_per_seq={str(args.max_predictions_per_seq)}'
+            bert_preprocessing_command += f' --masked_lm_prob={str(args.masked_lm_prob)}'
+            bert_preprocessing_command += f' --random_seed={str(args.random_seed)}'
+            bert_preprocessing_command += f' --dupe_factor={str(args.dupe_factor)}'
             bert_preprocessing_process = subprocess.Popen(bert_preprocessing_command, shell=True)
 
             last_process = bert_preprocessing_process
@@ -208,12 +235,12 @@ def main(args):
         output_file_prefix = args.dataset
 
         for i in range(args.n_training_shards):
-            last_process = create_record_worker(output_file_prefix + '_training', i)
+            last_process = create_record_worker(f'{output_file_prefix}_training', i)
 
         last_process.wait()
 
         for i in range(args.n_test_shards):
-            last_process = create_record_worker(output_file_prefix + '_test', i)
+            last_process = create_record_worker(f'{output_file_prefix}_test', i)
 
         last_process.wait()
 

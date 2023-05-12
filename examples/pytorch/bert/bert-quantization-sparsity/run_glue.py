@@ -67,10 +67,10 @@ class Knowledge_Distillation_Loss(torch.nn.Module):
         self.T = T
 
     def get_knowledge_distillation_loss(self, output_student, output_teacher):
-        loss_kl = self.KLdiv(torch.nn.functional.log_softmax(output_student / self.T, dim=1), torch.nn.functional.softmax(output_teacher / self.T, dim=1))
-
-        loss = loss_kl
-        return loss
+        return self.KLdiv(
+            torch.nn.functional.log_softmax(output_student / self.T, dim=1),
+            torch.nn.functional.softmax(output_teacher / self.T, dim=1),
+        )
 
 
 def compute_metrics(task_name, preds, labels):
@@ -347,16 +347,19 @@ def init_optimizer_and_amp(model, learning_rate, loss_scale, warmup_proportion,
     optimizer_grouped_parameters = [
         {
             'params': [
-                p for n, p in param_optimizer
-                if not any(nd in n for nd in no_decay)
+                p
+                for n, p in param_optimizer
+                if all(nd not in n for nd in no_decay)
             ],
-            'weight_decay': 0.01
+            'weight_decay': 0.01,
         },
         {
             'params': [
-                p for n, p in param_optimizer if any(nd in n for nd in no_decay)
+                p
+                for n, p in param_optimizer
+                if any(nd in n for nd in no_decay)
             ],
-            'weight_decay': 0.0
+            'weight_decay': 0.0,
         },
     ]
     optimizer, scheduler = None, None
@@ -444,11 +447,11 @@ def get_train_features(data_dir, bert_model, max_seq_length, do_lower_case,
     try:
         with open(cached_train_features_file, "rb") as reader:
             train_features = pickle.load(reader)
-        logger.info("Loaded pre-processed features from {}".format(
-            cached_train_features_file))
+        logger.info(f"Loaded pre-processed features from {cached_train_features_file}")
     except:
-        logger.info("Did not find pre-processed features from {}".format(
-            cached_train_features_file))
+        logger.info(
+            f"Did not find pre-processed features from {cached_train_features_file}"
+        )
         train_examples = processor.get_train_examples(data_dir)
         train_features, _ = convert_examples_to_features(
             train_examples,

@@ -21,7 +21,7 @@ from onmt.translate import GNMTGlobalScorer
 import os
 import sys
 dir_path = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(dir_path + "/../../..")
+sys.path.append(f"{dir_path}/../../..")
 
 from utils.translation_model import load_test_model
 from utils.translator import Translator
@@ -51,7 +51,7 @@ parser.add_argument('-diversity_rate', '--beam_search_diversity_rate', type=floa
 parser.add_argument('-topk', '--sampling_topk', type=int, default=1, metavar='NUMBER',
                     help='Candidate (k) value of top k sampling in decoding. Default is 1.')
 parser.add_argument('-topp', '--sampling_topp', type=float, default=0.0, metavar='NUMBER',
-                    help='Probability (p) value of top p sampling in decoding. Default is 0.0. ')        
+                    help='Probability (p) value of top p sampling in decoding. Default is 0.0. ')
 args = parser.parse_args()
 
 opt = argparse.Namespace(models=[args.model_path],
@@ -86,9 +86,7 @@ with open(args.input_file, 'r') as f:
     lines = f.readlines()
     lines = [line.strip() for line in lines]
     translated = translator.translate(lines, batch_size=args.batch_size)
-    for i in range(len(translated[1])):
-        res.append(translated[1][i][0])
-
+    res.extend(translated[1][i][0] for i in range(len(translated[1])))
 if args.output_file:
     with open(args.output_file, 'w') as f:
         for line in res:

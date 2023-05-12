@@ -58,7 +58,11 @@ def convert_type(tensor, data_type):
 def evaluate(args, model, tokenizer, prefix=""):
     # Loop to handle MNLI double evaluation (matched, mis-matched)
     eval_task_names = ("mnli", "mnli-mm") if args.task_name == "mnli" else (args.task_name,)
-    eval_outputs_dirs = (args.output_dir, args.output_dir + "-MM") if args.task_name == "mnli" else (args.output_dir,)
+    eval_outputs_dirs = (
+        (args.output_dir, f"{args.output_dir}-MM")
+        if args.task_name == "mnli"
+        else (args.output_dir,)
+    )
 
     results = {}
     for eval_task, eval_output_dir in zip(eval_task_names, eval_outputs_dirs):
@@ -78,14 +82,12 @@ def evaluate(args, model, tokenizer, prefix=""):
         #    model = torch.nn.DataParallel(model)
 
         # Eval!
-        logger.info("***** Running evaluation {} *****".format(prefix))
+        logger.info(f"***** Running evaluation {prefix} *****")
         logger.info("  Num examples = %d", len(eval_dataset))
         logger.info("  Batch size = %d", args.eval_batch_size)
-        # eval_loss = 0.0
-        nb_eval_steps = 0
         preds = None
         out_label_ids = None
-        
+
         start_time = timeit.default_timer()
         for batch in tqdm(eval_dataloader, desc="Evaluating"):
             model.eval()
@@ -98,8 +100,7 @@ def evaluate(args, model, tokenizer, prefix=""):
                 logits = outputs[0]
 
                 # eval_loss += tmp_eval_loss.mean().item()
-                
-            nb_eval_steps += 1
+
             if preds is None:
                 preds = logits.detach().float().cpu().numpy()
                 out_label_ids = batch[3].detach().float().cpu().numpy()
@@ -108,19 +109,23 @@ def evaluate(args, model, tokenizer, prefix=""):
                 out_label_ids = np.append(out_label_ids, batch[3].detach().float().cpu().numpy(), axis=0)
 
         evalTime = timeit.default_timer() - start_time
-        logger.info("  Evaluation for " + eval_task + " done in total %f secs (%f sec per example)", evalTime, evalTime / len(eval_dataset))
-        
+        logger.info(
+            f"  Evaluation for {eval_task} done in total %f secs (%f sec per example)",
+            evalTime,
+            evalTime / len(eval_dataset),
+        )
+
         # eval_loss = eval_loss / nb_eval_steps
         if args.output_mode == "classification":
             preds = np.argmax(preds, axis=1)
         elif args.output_mode == "regression":
             preds = np.squeeze(preds)
         result = compute_metrics(eval_task, preds, out_label_ids)
-        results.update(result)
+        results |= result
 
         output_eval_file = os.path.join(eval_output_dir, prefix, "eval_results.txt")
         with open(output_eval_file, "w") as writer:
-            logger.info("***** Eval results {} *****".format(prefix))
+            logger.info(f"***** Eval results {prefix} *****")
             for key in sorted(result.keys()):
                 logger.info("  %s = %s", key, str(result[key]))
                 writer.write("%s = %s\n" % (key, str(result[key])))
@@ -137,12 +142,7 @@ def load_and_cache_examples(args, task, tokenizer, evaluate=False):
     # Load data features from cache or dataset file
     cached_features_file = os.path.join(
         args.data_dir,
-        "cached_{}_{}_{}_{}".format(
-            "dev" if evaluate else "train",
-            list(filter(None, args.model_name_or_path.split("/"))).pop(),
-            str(args.max_seq_length),
-            str(task),
-        ),
+        f'cached_{"dev" if evaluate else "train"}_{list(filter(None, args.model_name_or_path.split("/"))).pop()}_{str(args.max_seq_length)}_{str(task)}',
     )
     if os.path.exists(cached_features_file) and not args.overwrite_cache:
         logger.info("Loading features from cached file %s", cached_features_file)
@@ -179,8 +179,9 @@ def load_and_cache_examples(args, task, tokenizer, evaluate=False):
     elif output_mode == "regression":
         all_labels = torch.tensor([f.label for f in features], dtype=torch.float)
 
-    dataset = TensorDataset(all_input_ids, all_attention_mask, all_token_type_ids, all_labels)
-    return dataset
+    return TensorDataset(
+        all_input_ids, all_attention_mask, all_token_type_ids, all_labels
+    )
 
 
 def main():
@@ -292,7 +293,7 @@ def main():
     # Prepare GLUE task
     args.task_name = args.task_name.lower()
     if args.task_name not in processors:
-        raise ValueError("Task not found: %s" % (args.task_name))
+        raise ValueError(f"Task not found: {args.task_name}")
     processor = processors[args.task_name]()
     args.output_mode = output_modes[args.task_name]
     label_list = processor.get_labels()
@@ -374,8 +375,8 @@ def main():
                     model = model_
 
             result = evaluate(args, model, tokenizer, prefix=prefix)
-            result = dict((k + "_{}".format(global_step), v) for k, v in result.items())
-            results.update(result)
+            result = {f"{k}_{global_step}": v for k, v in result.items()}
+            results |= result
 
     return results
 

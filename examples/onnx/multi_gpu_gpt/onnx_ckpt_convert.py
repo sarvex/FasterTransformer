@@ -20,7 +20,7 @@ from onnx import numpy_helper
 import os
 import sys
 dir_path = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(dir_path + "/../../../..")
+sys.path.append(f"{dir_path}/../../../..")
 from multiprocessing import Process
 
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
@@ -34,20 +34,20 @@ def split_and_convert_process(i, saved_dir,factor,key,args, val):
 
         # shared weights, only need to convert the weights of rank 0
         if i == 0:
-            saved_path = saved_dir + "/model." + key + ".bin"
+            saved_path = f"{saved_dir}/model.{key}.bin"
             val.tofile(saved_path)
 
     elif key.find("attention.dense.weight") != -1 or key.find("mlp.dense_4h_to_h.weight") != -1:
         split_vals = np.split(val, factor, axis=0)
         for j in range(factor):
-            saved_path = saved_dir + "/model." + key + ".%d.bin" % (i * factor + j)
+            saved_path = f"{saved_dir}/model.{key}" + ".%d.bin" % (i * factor + j)
             split_vals[j].tofile(saved_path)
 
     elif key.find("mlp.dense_h_to_4h.weight") != -1 or key.find("mlp.dense_h_to_4h.bias") != -1:
 
         split_vals = np.split(val, factor, axis=-1)
         for j in range(factor):
-            saved_path = saved_dir + "/model." + key + ".%d.bin" % (i * factor + j)
+            saved_path = f"{saved_dir}/model.{key}" + ".%d.bin" % (i * factor + j)
             split_vals[j].tofile(saved_path)
 
     elif key.find("attention.query_key_value.bias") != -1:
@@ -57,7 +57,7 @@ def split_and_convert_process(i, saved_dir,factor,key,args, val):
         split_vals = np.split(val, factor, axis=-1)
 
         for j in range(factor):
-            saved_path = saved_dir + "/model." + key + ".%d.bin" % (i * factor + j)
+            saved_path = f"{saved_dir}/model.{key}" + ".%d.bin" % (i * factor + j)
             split_vals[j].tofile(saved_path)
 
     elif key.find("attention.query_key_value.weight") != -1:
@@ -68,11 +68,11 @@ def split_and_convert_process(i, saved_dir,factor,key,args, val):
         split_vals = np.split(val, factor, axis=-1)
 
         for j in range(factor):
-            saved_path = saved_dir + "/model." + key + ".%d.bin" % (i * factor + j)
+            saved_path = f"{saved_dir}/model.{key}" + ".%d.bin" % (i * factor + j)
             split_vals[j].tofile(saved_path)
 
     else:
-        print("[ERROR] cannot find key '{}'".format(key))
+        print(f"[ERROR] cannot find key '{key}'")
 
 def split_and_convert(args):
     saved_dir = args.saved_dir + "/%d-gpu/" % args.infer_gpu_num
@@ -89,7 +89,7 @@ def split_and_convert(args):
 
     # load position_embedding from rank 0 
     model = onnx.load(ckpt_name)
-    
+
     onnx_model_name_pattern = [
         "ln_1.bias",
         "ln_1.weight",
@@ -104,7 +104,7 @@ def split_and_convert(args):
         "mlp.c_proj.bias",
         "mlp.c_proj.weight",
     ]
-    
+
     ft_model_name_pattern = [
         "input_layernorm.bias",
         "input_layernorm.weight",
@@ -119,19 +119,23 @@ def split_and_convert(args):
         "mlp.dense_4h_to_h.bias",
         "mlp.dense_4h_to_h.weight",
     ]
-    
+
     proccess_list = []
     for t in model.graph.initializer:
         if t.name.find("weight") == -1 and t.name.find("bias") == -1:
             continue
         if t.name == 'wpe.weight':
-            numpy_helper.to_array(t).astype(np.float32).tofile(saved_dir + "model.wpe.bin")
+            numpy_helper.to_array(t).astype(np.float32).tofile(f"{saved_dir}model.wpe.bin")
         elif t.name == 'wte.weight':
-            numpy_helper.to_array(t).astype(np.float32).tofile(saved_dir + "model.wte.bin")
+            numpy_helper.to_array(t).astype(np.float32).tofile(f"{saved_dir}model.wte.bin")
         elif t.name == 'ln_f.bias':
-            numpy_helper.to_array(t).astype(np.float32).tofile(saved_dir + "model.final_layernorm.bias.bin")
+            numpy_helper.to_array(t).astype(np.float32).tofile(
+                f"{saved_dir}model.final_layernorm.bias.bin"
+            )
         elif t.name == 'ln_f.weight':
-            numpy_helper.to_array(t).astype(np.float32).tofile(saved_dir + "model.final_layernorm.weight.bin")
+            numpy_helper.to_array(t).astype(np.float32).tofile(
+                f"{saved_dir}model.final_layernorm.weight.bin"
+            )
         else:
             for i in range(len(onnx_model_name_pattern)):
                 if t.name.find(onnx_model_name_pattern[i]) != -1:
@@ -153,7 +157,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print("\n=============== Argument ===============")
     for key in vars(args):
-        print("{}: {}".format(key, vars(args)[key]))
+        print(f"{key}: {vars(args)[key]}")
     print("========================================")
 
     split_and_convert(args)

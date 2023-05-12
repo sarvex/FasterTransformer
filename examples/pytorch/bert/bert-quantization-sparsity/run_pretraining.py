@@ -132,8 +132,7 @@ class BertPretrainingCriterion(torch.nn.Module):
     def forward(self, prediction_scores, seq_relationship_score, masked_lm_labels, next_sentence_labels):
         masked_lm_loss = self.loss_fn(prediction_scores.view(-1, self.vocab_size), masked_lm_labels.view(-1))
         next_sentence_loss = self.loss_fn(seq_relationship_score.view(-1, 2), next_sentence_labels.view(-1))
-        total_loss = masked_lm_loss + next_sentence_loss
-        return total_loss
+        return masked_lm_loss + next_sentence_loss
 
 
 def parse_arguments():
@@ -319,11 +318,11 @@ def setup_training(args):
         # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
         args.n_gpu = 1
-        
+
     if args.gradient_accumulation_steps == 1:
         args.allreduce_post_accumulation = False
         args.allreduce_post_accumulation_fp16 = False
-        
+
     if is_main_process():
         dllogger.init(backends=[dllogger.JSONStreamBackend(verbosity=dllogger.Verbosity.VERBOSE,
                                                            filename=args.json_summary),
@@ -331,24 +330,33 @@ def setup_training(args):
     else:
         dllogger.init(backends=[])
 
-    print("device: {} n_gpu: {}, distributed training: {}, 16-bits training: {}".format(
-        device, args.n_gpu, bool(args.local_rank != -1), args.fp16))
+    print(
+        f"device: {device} n_gpu: {args.n_gpu}, distributed training: {args.local_rank != -1}, 16-bits training: {args.fp16}"
+    )
 
     if args.gradient_accumulation_steps < 1:
-        raise ValueError("Invalid gradient_accumulation_steps parameter: {}, should be >= 1".format(
-            args.gradient_accumulation_steps))
+        raise ValueError(
+            f"Invalid gradient_accumulation_steps parameter: {args.gradient_accumulation_steps}, should be >= 1"
+        )
     if args.train_batch_size % args.gradient_accumulation_steps != 0:
-        raise ValueError("Invalid gradient_accumulation_steps parameter: {}, batch size {} should be divisible".format(
-            args.gradient_accumulation_steps, args.train_batch_size))
+        raise ValueError(
+            f"Invalid gradient_accumulation_steps parameter: {args.gradient_accumulation_steps}, batch size {args.train_batch_size} should be divisible"
+        )
 
     args.train_batch_size = args.train_batch_size // args.gradient_accumulation_steps
 
     if not args.do_train:
         raise ValueError(" `do_train`  must be True.")
 
-    if not args.resume_from_checkpoint and os.path.exists(args.output_dir) and (
-            os.listdir(args.output_dir) and any([i.startswith('ckpt') for i in os.listdir(args.output_dir)])):
-        raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
+    if (
+        not args.resume_from_checkpoint
+        and os.path.exists(args.output_dir)
+        and os.listdir(args.output_dir)
+        and any(i.startswith('ckpt') for i in os.listdir(args.output_dir))
+    ):
+        raise ValueError(
+            f"Output directory ({args.output_dir}) already exists and is not empty."
+        )
 
     if (not args.resume_from_checkpoint or not os.path.exists(args.output_dir)) and is_main_process():
         os.makedirs(args.output_dir, exist_ok=True)
@@ -379,17 +387,23 @@ def prepare_model_and_optimizer(args, device):
     else:
         if args.resume_step == -1 and not args.init_checkpoint:
             model_names = [f for f in os.listdir(args.output_dir) if f.endswith(".pt")]
-            args.resume_step = max([int(x.split('.pt')[0].split('_')[1].strip()) for x in model_names])
+            args.resume_step = max(
+                int(x.split('.pt')[0].split('_')[1].strip())
+                for x in model_names
+            )
 
         global_step = args.resume_step if not args.init_checkpoint else 0
 
         if not args.init_checkpoint:
-            checkpoint = torch.load(os.path.join(args.output_dir, "ckpt_{}.pt".format(global_step)), map_location="cpu")
+            checkpoint = torch.load(
+                os.path.join(args.output_dir, f"ckpt_{global_step}.pt"),
+                map_location="cpu",
+            )
         else:
             checkpoint = torch.load(args.init_checkpoint, map_location="cpu")
 
         model.load_state_dict(checkpoint['model'], strict=False)
-        
+
         if args.phase2 and not args.init_checkpoint:
             global_step -= args.phase1_end_step
         if is_main_process():
@@ -406,10 +420,25 @@ def prepare_model_and_optimizer(args, device):
 
     param_optimizer = list(model.named_parameters())
     no_decay = ['bias', 'gamma', 'beta', 'LayerNorm']
-    
+
     optimizer_grouped_parameters = [
-        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
-        {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}]
+        {
+            'params': [
+                p
+                for n, p in param_optimizer
+                if all(nd not in n for nd in no_decay)
+            ],
+            'weight_decay': 0.01,
+        },
+        {
+            'params': [
+                p
+                for n, p in param_optimizer
+                if any(nd in n for nd in no_decay)
+            ],
+            'weight_decay': 0.0,
+        },
+    ]
 
     optimizer = FusedLAMB(optimizer_grouped_parameters, 
                           lr=args.learning_rate)
@@ -523,7 +552,7 @@ def main():
     global timeout_sent
 
     args = parse_arguments()
-        
+
     random.seed(args.seed + args.local_rank)
     np.random.seed(args.seed + args.local_rank)
     torch.manual_seed(args.seed + args.local_rank)
@@ -558,12 +587,12 @@ def main():
 
         pool = ProcessPoolExecutor(1)
 
+        thread = None
         # Note: We loop infinitely over epochs, termination is handled via iteration count
         while True:
             if args.sparse and args.recompute_sparse_masks:
                 ASP.compute_sparse_masks()
 
-            thread = None
             restored_data_loader = None
             if not args.resume_from_checkpoint or epoch > 0 or (args.phase2 and global_step < 1) or args.init_checkpoint:
                 files = [os.path.join(args.input_dir, f) for f in os.listdir(args.input_dir) if
@@ -609,7 +638,7 @@ def main():
 
             for f_id in range(f_start_id + 1 , len(files)):
                 
-   
+               
                 if get_world_size() > num_files:
                     data_file = files[(f_id*get_world_size()+get_rank() + remainder*f_id)%num_files]
                 else:
@@ -634,11 +663,13 @@ def main():
                         loss = loss.mean()  # mean() to average on multi-gpu.
 
                     divisor = args.gradient_accumulation_steps
-                    if args.gradient_accumulation_steps > 1:
-                        if not args.allreduce_post_accumulation:
-                            # this division was merged into predivision
-                            loss = loss / args.gradient_accumulation_steps
-                            divisor = 1.0
+                    if (
+                        args.gradient_accumulation_steps > 1
+                        and not args.allreduce_post_accumulation
+                    ):
+                        # this division was merged into predivision
+                        loss = loss / args.gradient_accumulation_steps
+                        divisor = 1.0
                     if args.fp16:
                         with amp.scale_loss(loss, optimizer, delay_overflow_check=args.allreduce_post_accumulation) as scaled_loss:
                             scaled_loss.backward()
@@ -670,36 +701,50 @@ def main():
                         average_loss = 0
 
 
-                    if global_step >= args.steps_this_run or training_steps % (
-                            args.num_steps_per_checkpoint * args.gradient_accumulation_steps) == 0 or timeout_sent:
-                        if is_main_process() and not args.skip_checkpoint:
-                            # Save a trained model
-                            dllogger.log(step="PARAMETER", data={"checkpoint_step": global_step})
-                            model_to_save = model.module if hasattr(model,
-                                                                    'module') else model  # Only save the model it-self
-                            if args.resume_step < 0 or not args.phase2:
-                                output_save_file = os.path.join(args.output_dir, "ckpt_{}.pt".format(global_step))
-                            else:
-                                output_save_file = os.path.join(args.output_dir, "ckpt_{}.pt".format(global_step + args.phase1_end_step))
-                            if args.do_train:
-                                torch.save({'model': model_to_save.state_dict(),
-                                            'optimizer': optimizer.state_dict(),
-                                            'master params': list(amp.master_params(optimizer)),
-                                            'files': [f_id] + files,
-                                            'epoch': epoch,
-                                            'data_loader': None if global_step >= args.max_steps else train_dataloader}, output_save_file)
+                    if (
+                        (
+                            global_step >= args.steps_this_run
+                            or training_steps
+                            % (
+                                args.num_steps_per_checkpoint
+                                * args.gradient_accumulation_steps
+                            )
+                            == 0
+                            or timeout_sent
+                        )
+                        and is_main_process()
+                        and not args.skip_checkpoint
+                    ):
+                        # Save a trained model
+                        dllogger.log(step="PARAMETER", data={"checkpoint_step": global_step})
+                        model_to_save = model.module if hasattr(model,
+                                                                'module') else model  # Only save the model it-self
+                        if args.resume_step < 0 or not args.phase2:
+                            output_save_file = os.path.join(args.output_dir, f"ckpt_{global_step}.pt")
+                        else:
+                            output_save_file = os.path.join(
+                                args.output_dir,
+                                f"ckpt_{global_step + args.phase1_end_step}.pt",
+                            )
+                        if args.do_train:
+                            torch.save({'model': model_to_save.state_dict(),
+                                        'optimizer': optimizer.state_dict(),
+                                        'master params': list(amp.master_params(optimizer)),
+                                        'files': [f_id] + files,
+                                        'epoch': epoch,
+                                        'data_loader': None if global_step >= args.max_steps else train_dataloader}, output_save_file)
 
-                                most_recent_ckpts_paths.append(output_save_file)
-                                if len(most_recent_ckpts_paths) > 3:
-                                    ckpt_to_be_removed = most_recent_ckpts_paths.pop(0)
-                                    os.remove(ckpt_to_be_removed)
+                            most_recent_ckpts_paths.append(output_save_file)
+                            if len(most_recent_ckpts_paths) > 3:
+                                ckpt_to_be_removed = most_recent_ckpts_paths.pop(0)
+                                os.remove(ckpt_to_be_removed)
 
-                        # Exiting the training due to hitting max steps, or being sent a 
-                        # timeout from the cluster scheduler
-                        if global_step >= args.steps_this_run or timeout_sent:
-                            del train_dataloader
-                            # thread.join()
-                            return args, final_loss, train_time_raw, global_step
+                    # Exiting the training due to hitting max steps, or being sent a 
+                    # timeout from the cluster scheduler
+                    if global_step >= args.steps_this_run or timeout_sent:
+                        del train_dataloader
+                        # thread.join()
+                        return args, final_loss, train_time_raw, global_step
 
                 del train_dataloader
                 # thread.join()

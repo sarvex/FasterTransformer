@@ -69,10 +69,10 @@ class Knowledge_Distillation_Loss(torch.nn.Module):
         self.T = T
 
     def get_knowledge_distillation_loss(self, output_student, output_teacher):
-        loss_kl = self.KLdiv(torch.nn.functional.log_softmax(output_student / self.T, dim=1), torch.nn.functional.softmax(output_teacher / self.T, dim=1))
-
-        loss = loss_kl
-        return loss
+        return self.KLdiv(
+            torch.nn.functional.log_softmax(output_student / self.T, dim=1),
+            torch.nn.functional.softmax(output_teacher / self.T, dim=1),
+        )
 
 
 class SquadExample(object):
@@ -102,10 +102,9 @@ class SquadExample(object):
 
     def __repr__(self):
         s = ""
-        s += "qas_id: %s" % (self.qas_id)
-        s += ", question_text: %s" % (
-            self.question_text)
-        s += ", doc_tokens: [%s]" % (" ".join(self.doc_tokens))
+        s += f"qas_id: {self.qas_id}"
+        s += f", question_text: {self.question_text}"
+        s += f', doc_tokens: [{" ".join(self.doc_tokens)}]'
         if self.start_position:
             s += ", start_position: %d" % (self.start_position)
         if self.end_position:
@@ -151,9 +150,7 @@ def read_squad_examples(input_file, is_training, version_2_with_negative):
         input_data = json.load(reader)["data"]
 
     def is_whitespace(c):
-        if c == " " or c == "\t" or c == "\r" or c == "\n" or ord(c) == 0x202F:
-            return True
-        return False
+        return c == " " or c == "\t" or c == "\r" or c == "\n" or ord(c) == 0x202F
 
     examples = []
     for entry in input_data:
@@ -202,7 +199,7 @@ def read_squad_examples(input_file, is_training, version_2_with_negative):
                         actual_text = " ".join(doc_tokens[start_position:(end_position + 1)])
                         cleaned_answer_text = " ".join(
                             whitespace_tokenize(orig_answer_text))
-                        if actual_text.find(cleaned_answer_text) == -1:
+                        if cleaned_answer_text not in actual_text:
                             logger.warning("Could not find answer: '%s' vs. '%s'",
                                            actual_text, cleaned_answer_text)
                             continue
@@ -537,8 +534,9 @@ def get_answer_text(example, feature, pred, args):
     tok_text = " ".join(tok_text.split())
     orig_text = " ".join(orig_tokens)
 
-    final_text = get_final_text(tok_text, orig_text, args.do_lower_case, args.verbose_logging)
-    return final_text
+    return get_final_text(
+        tok_text, orig_text, args.do_lower_case, args.verbose_logging
+    )
 
 def get_valid_prelim_predictions(start_indices, end_indices, feature, result, args):
     
@@ -572,8 +570,8 @@ def get_valid_prelim_predictions(start_indices, end_indices, feature, result, ar
     return prelim_predictions
 
 def match_results(examples, features, results):
-    unique_f_ids = set([f.unique_id for f in features])
-    unique_r_ids = set([r.unique_id for r in results])
+    unique_f_ids = {f.unique_id for f in features}
+    unique_r_ids = {r.unique_id for r in results}
     matching_ids = unique_f_ids & unique_r_ids
     features = [f for f in features if f.unique_id in matching_ids]
     results = [r for r in results if r.unique_id in matching_ids]
@@ -634,8 +632,7 @@ def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
     start_position = tok_text.find(pred_text)
     if start_position == -1:
         if verbose_logging:
-            logger.info(
-                "Unable to find text: '%s' in '%s'" % (pred_text, orig_text))
+            logger.info(f"Unable to find text: '{pred_text}' in '{orig_text}'")
         return orig_text
     end_position = start_position + len(pred_text) - 1
 
@@ -709,10 +706,7 @@ def _compute_softmax(scores):
         exp_scores.append(x)
         total_sum += x
 
-    probs = []
-    for score in exp_scores:
-        probs.append(score / total_sum)
-    return probs
+    return [score / total_sum for score in exp_scores]
 
 
 

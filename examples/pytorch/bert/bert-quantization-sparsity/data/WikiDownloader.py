@@ -19,7 +19,7 @@ import sys
 
 class WikiDownloader:
     def __init__(self, language, save_path):
-        self.save_path = save_path + '/wikicorpus_' + language
+        self.save_path = f'{save_path}/wikicorpus_{language}'
 
         if not os.path.exists(self.save_path):
             os.makedirs(self.save_path)
@@ -42,16 +42,18 @@ class WikiDownloader:
             filename = self.output_files[self.language]
 
             print('Downloading:', url)
-            if os.path.isfile(self.save_path + '/' + filename):
+            if os.path.isfile(f'{self.save_path}/{filename}'):
                 print('** Download file already exists, skipping download')
             else:
                 response = urllib.request.urlopen(url)
-                with open(self.save_path + '/' + filename, "wb") as handle:
+                with open(f'{self.save_path}/{filename}', "wb") as handle:
                     handle.write(response.read())
 
             # Always unzipping since this is relatively fast and will overwrite
             print('Unzipping:', self.output_files[self.language])
-            subprocess.run('bzip2 -dk ' + self.save_path + '/' + filename, shell=True, check=True)
+            subprocess.run(
+                f'bzip2 -dk {self.save_path}/{filename}', shell=True, check=True
+            )
 
         else:
             assert False, 'WikiDownloader not implemented for this language yet.'

@@ -72,13 +72,13 @@ def load_tf_weights_in_bert(model, tf_checkpoint_path):
             "https://www.tensorflow.org/install/ for installation instructions.")
         raise
     tf_path = os.path.abspath(tf_checkpoint_path)
-    print("Converting TensorFlow checkpoint from {}".format(tf_path))
+    print(f"Converting TensorFlow checkpoint from {tf_path}")
     # Load weights from TF model
     init_vars = tf.train.list_variables(tf_path)
     names = []
     arrays = []
     for name, shape in init_vars:
-        print("Loading TF weight {} with shape {}".format(name, shape))
+        print(f"Loading TF weight {name} with shape {shape}")
         array = tf.train.load_variable(tf_path, name)
         names.append(name)
         arrays.append(array)
@@ -88,7 +88,7 @@ def load_tf_weights_in_bert(model, tf_checkpoint_path):
         # adam_v and adam_m are variables used in AdamWeightDecayOptimizer to calculated m and v
         # which are not required for using pretrained model
         if any(n in ["adam_v", "adam_m"] for n in name):
-            print("Skipping {}".format("/".join(name)))
+            print(f'Skipping {"/".join(name)}')
             continue
         pointer = model
         for m_name in name:
@@ -96,12 +96,14 @@ def load_tf_weights_in_bert(model, tf_checkpoint_path):
                 l = re.split(r'_(\d+)', m_name)
             else:
                 l = [m_name]
-            if l[0] == 'kernel' or l[0] == 'gamma':
+            if (
+                l[0] in ['kernel', 'gamma']
+                or l[0] not in ['output_bias', 'beta']
+                and l[0] == 'output_weights'
+            ):
                 pointer = getattr(pointer, 'weight')
-            elif l[0] == 'output_bias' or l[0] == 'beta':
+            elif l[0] in ['output_bias', 'beta']:
                 pointer = getattr(pointer, 'bias')
-            elif l[0] == 'output_weights':
-                pointer = getattr(pointer, 'weight')
             else:
                 pointer = getattr(pointer, l[0])
             if len(l) >= 2:
@@ -116,7 +118,7 @@ def load_tf_weights_in_bert(model, tf_checkpoint_path):
         except AssertionError as e:
             e.args += (pointer.shape, array.shape)
             raise
-        print("Initialize PyTorch weight {}".format(name))
+        print(f"Initialize PyTorch weight {name}")
         pointer.data = torch.from_numpy(array)
     return model
 
@@ -160,8 +162,8 @@ class LinearActivation(Module):
         self.biased_act_fn = None                                                           #
         self.bias = None                                                                    #
         if isinstance(act, str) or (sys.version_info[0] == 2 and isinstance(act, unicode)): # For TorchScript
-            if bias and not 'bias' in act:                                                  # compatibility
-                act = 'bias_' + act                                                         #
+            if bias and 'bias' not in act:                                          # compatibility
+                act = f'bias_{act}'
                 self.biased_act_fn = ACT2FN[act]                                            #
 
             else:
@@ -197,18 +199,15 @@ class LinearActivation(Module):
         else:
             weight = self.weight
 
-        if not self.bias is None:
-            if QUANT and self.do_quant:
-                return self.biased_act_fn(self.bias, self._aftergemm_quantizer(F.linear(input, weight, None)))
-            else:
-                return self.biased_act_fn(self.bias, F.linear(input, weight, None))
-        else:
+        if self.bias is None:
             return self.act_fn(F.linear(input, weight, self.bias))
+        if QUANT and self.do_quant:
+            return self.biased_act_fn(self.bias, self._aftergemm_quantizer(F.linear(input, weight, None)))
+        else:
+            return self.biased_act_fn(self.bias, F.linear(input, weight, None))
 
     def extra_repr(self):
-        return 'in_features={}, out_features={}, bias={}'.format(
-            self.in_features, self.out_features, self.bias is not None
-        )
+        return f'in_features={self.in_features}, out_features={self.out_features}, bias={self.bias is not None}'
 
 
 class BertConfig(object):
@@ -294,8 +293,7 @@ class BertConfig(object):
 
     def to_dict(self):
         """Serializes this instance to a Python dictionary."""
-        output = copy.deepcopy(self.__dict__)
-        return output
+        return copy.deepcopy(self.__dict__)
 
     def to_json_string(self):
         """Serializes this instance to a JSON string."""
@@ -491,8 +489,7 @@ class BertAttention(nn.Module):
 
     def forward(self, input_tensor, attention_mask):
         self_output = self.self(input_tensor, attention_mask)
-        attention_output = self.output(self_output, input_tensor)
-        return attention_output
+        return self.output(self_output, input_tensor)
 
 
 class BertIntermediate(nn.Module):
@@ -540,8 +537,7 @@ class BertLayer(nn.Module):
     def forward(self, hidden_states, attention_mask):
         attention_output = self.attention(hidden_states, attention_mask)
         intermediate_output = self.intermediate(attention_output)
-        layer_output = self.output(intermediate_output, attention_output)
-        return layer_output
+        return self.output(intermediate_output, attention_output)
 
 class BertEncoder(nn.Module):
     def __init__(self, config):
@@ -603,8 +599,7 @@ class BertPooler(nn.Module):
         # We "pool" the model by simply taking the hidden state corresponding
         # to the first token.
         first_token_tensor = hidden_states[:, 0]
-        pooled_output = self.dense(first_token_tensor)
-        return pooled_output
+        return self.dense(first_token_tensor)
 
 
 class BertPredictionHeadTransform(nn.Module):
@@ -644,8 +639,7 @@ class BertOnlyMLMHead(nn.Module):
         self.predictions = BertLMPredictionHead(config, bert_model_embedding_weights)
 
     def forward(self, sequence_output):
-        prediction_scores = self.predictions(sequence_output)
-        return prediction_scores
+        return self.predictions(sequence_output)
 
 
 class BertOnlyNSPHead(nn.Module):
@@ -654,8 +648,7 @@ class BertOnlyNSPHead(nn.Module):
         self.seq_relationship = nn.Linear(config.hidden_size, 2)
 
     def forward(self, pooled_output):
-        seq_relationship_score = self.seq_relationship(pooled_output)
-        return seq_relationship_score
+        return self.seq_relationship(pooled_output)
 
 
 class BertPreTrainingHeads(nn.Module):
@@ -678,11 +671,8 @@ class BertPreTrainedModel(nn.Module):
         super(BertPreTrainedModel, self).__init__()
         if not isinstance(config, BertConfig):
             raise ValueError(
-                "Parameter config in `{}(config)` should be an instance of class `BertConfig`. "
-                "To create a model from a Google pretrained model use "
-                "`model = {}.from_pretrained(PRETRAINED_MODEL_NAME)`".format(
-                    self.__class__.__name__, self.__class__.__name__
-                ))
+                f"Parameter config in `{self.__class__.__name__}(config)` should be an instance of class `BertConfig`. To create a model from a Google pretrained model use `model = {self.__class__.__name__}.from_pretrained(PRETRAINED_MODEL_NAME)`"
+            )
         self.config = config
 
     def init_bert_weights(self, module):
@@ -769,7 +759,7 @@ class BertPreTrainedModel(nn.Module):
                 resolved_archive_file, tempdir))
             with tarfile.open(resolved_archive_file, 'r:gz') as archive:
                 def is_within_directory(directory, target):
-    
+
                     abs_directory = os.path.abspath(directory)
                     abs_target = os.path.abspath(target)
 
@@ -836,17 +826,18 @@ class BertPreTrainedModel(nn.Module):
             for name, child in module._modules.items():
                 if child is not None:
                     load(child, prefix + name + '.')
+
         start_prefix = ''
         if not hasattr(model, 'bert') and any(s.startswith('bert.') for s in state_dict.keys()):
             start_prefix = 'bert.'
         load(model, prefix=start_prefix)
-        if len(missing_keys) > 0:
+        if missing_keys:
             logger.info("Weights of {} not initialized from pretrained model: {}".format(
                 model.__class__.__name__, missing_keys))
-        if len(unexpected_keys) > 0:
+        if unexpected_keys:
             logger.info("Weights from pretrained model not used in {}: {}".format(
                 model.__class__.__name__, unexpected_keys))
-        if len(error_msgs) > 0:
+        if error_msgs:
             raise RuntimeError('Error(s) in loading state_dict for {}:\n\t{}'.format(
                                model.__class__.__name__, "\n\t".join(error_msgs)))
         return model
@@ -1047,8 +1038,10 @@ class BertForMaskedLM(BertPreTrainedModel):
 
         if masked_lm_labels is not None:
             loss_fct = CrossEntropyLoss(ignore_index=-1)
-            masked_lm_loss = loss_fct(prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels.view(-1))
-            return masked_lm_loss
+            return loss_fct(
+                prediction_scores.view(-1, self.config.vocab_size),
+                masked_lm_labels.view(-1),
+            )
         else:
             return prediction_scores
 
@@ -1106,12 +1099,12 @@ class BertForNextSentencePrediction(BertPreTrainedModel):
         _, pooled_output = self.bert(input_ids, token_type_ids, attention_mask)
         seq_relationship_score = self.cls( pooled_output)
 
-        if next_sentence_label is not None:
-            loss_fct = CrossEntropyLoss(ignore_index=-1)
-            next_sentence_loss = loss_fct(seq_relationship_score.view(-1, 2), next_sentence_label.view(-1))
-            return next_sentence_loss
-        else:
+        if next_sentence_label is None:
             return seq_relationship_score
+        loss_fct = CrossEntropyLoss(ignore_index=-1)
+        return loss_fct(
+            seq_relationship_score.view(-1, 2), next_sentence_label.view(-1)
+        )
 
 
 class BertForSequenceClassification(BertPreTrainedModel):
@@ -1234,12 +1227,10 @@ class BertForMultipleChoice(BertPreTrainedModel):
         logits = self.classifier(pooled_output)
         reshaped_logits = logits.view(-1, self.num_choices)
 
-        if labels is not None:
-            loss_fct = CrossEntropyLoss()
-            loss = loss_fct(reshaped_logits, labels)
-            return loss
-        else:
+        if labels is None:
             return reshaped_logits
+        loss_fct = CrossEntropyLoss()
+        return loss_fct(reshaped_logits, labels)
 
 
 class BertForTokenClassification(BertPreTrainedModel):
@@ -1301,19 +1292,15 @@ class BertForTokenClassification(BertPreTrainedModel):
         sequence_output = self.dropout(sequence_output)
         logits = self.classifier(sequence_output)
 
-        if labels is not None:
-            loss_fct = CrossEntropyLoss()
-            # Only keep active parts of the loss
-            if attention_mask is not None:
-                active_loss = attention_mask.view(-1) == 1
-                active_logits = logits.view(-1, self.num_labels)[active_loss]
-                active_labels = labels.view(-1)[active_loss]
-                loss = loss_fct(active_logits, active_labels)
-            else:
-                loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
-            return loss
-        else:
+        if labels is None:
             return logits
+        loss_fct = CrossEntropyLoss()
+        if attention_mask is None:
+            return loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+        active_loss = attention_mask.view(-1) == 1
+        active_logits = logits.view(-1, self.num_labels)[active_loss]
+        active_labels = labels.view(-1)[active_loss]
+        return loss_fct(active_logits, active_labels)
 
 
 class BertForQuestionAnswering(BertPreTrainedModel):

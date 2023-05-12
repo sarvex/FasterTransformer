@@ -26,7 +26,7 @@ import sys
 import numpy as np
 import random
 dir_path = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(dir_path + "/../../..")
+sys.path.append(f"{dir_path}/../../..")
 from examples.pytorch.utils import print_memory_usage
 from examples.pytorch.bert.utils.encoder import HuggingFaceEncoder
 from examples.pytorch.bert.utils.encoder import CustomEncoder
@@ -42,10 +42,9 @@ def sequence_mask(lengths, max_len=None, is_2d=True):
             .lt(lengths.unsqueeze(1)))
     if is_2d:
         return mask
-    else:
-        mask = mask.view(-1, 1, 1, max_len)
-        m2 = mask.transpose(2, 3)
-        return mask * m2
+    mask = mask.view(-1, 1, 1, max_len)
+    m2 = mask.transpose(2, 3)
+    return mask * m2
 
 
 def main():
@@ -126,7 +125,7 @@ def bert_example(args):
 
     if args['int8_mode'] == 1:
         per_channel = True
-    elif args['int8_mode'] == 2 or args['int8_mode'] == 3:
+    elif args['int8_mode'] in [2, 3]:
         per_channel = False
     elif args['int8_mode'] != 0:
         raise ValueError("wrong int8_mode argument")

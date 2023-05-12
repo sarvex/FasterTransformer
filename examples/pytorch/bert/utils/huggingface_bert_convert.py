@@ -16,6 +16,7 @@
 Convert huggingface bert model. Use https://huggingface.co/bert-base-uncased as demo.
 '''
 
+
 import argparse
 import configparser
 import multiprocessing
@@ -33,7 +34,7 @@ import sys
 #     )
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(dir_path + "/../../../..")
+sys.path.append(f"{dir_path}/../../../..")
 sys.path.append(dir_path)
 from examples.pytorch.utils import torch2np, safe_transpose, WEIGHT2DTYPE
 
@@ -46,11 +47,11 @@ def split_and_convert_process(i, saved_dir,factor,key, args, val):
        key.find("attention.output.LayerNorm.bias") != -1 or \
        key.find("output.dense.bias") != -1 or \
        key.find("output.LayerNorm.weight") != -1 or \
-       key.find("output.LayerNorm.bias") != -1 :
-    
+       key.find("output.LayerNorm.bias") != -1:
+
         # shared weights, only need to convert the weights of rank 0
         if i == 0:
-            saved_path = saved_dir + "/model." + key + ".bin"
+            saved_path = f"{saved_dir}/model.{key}.bin"
             val.tofile(saved_path)
 
     elif key.find("attention.output.dense.weight") != -1 or key.find("output.dense.weight") != -1:
@@ -70,11 +71,11 @@ def split_and_convert_process(i, saved_dir,factor,key, args, val):
 
         split_vals = np.split(val, factor, axis=-1)
         for j in range(factor):
-            saved_path = saved_dir + "/model." + key + ".%d.bin" % (i * factor + j)
+            saved_path = f"{saved_dir}/model.{key}" + ".%d.bin" % (i * factor + j)
             split_vals[j].tofile(saved_path)
 
     else:
-        print("[WARNING] cannot convert key '{}'".format(key))
+        print(f"[WARNING] cannot convert key '{key}'")
 
 def split_and_convert(args):
     saved_dir = args.saved_dir + "/%d-gpu/" % args.infer_tensor_para_size
@@ -112,10 +113,10 @@ def split_and_convert(args):
         config["bert"]["layer_norm_eps"] = str(hf_config["layer_norm_eps"])
         config["bert"]["weight_data_type"] = args.weight_data_type
         config["bert"]["tensor_para_size"] = str(args.infer_tensor_para_size)
-        with open(saved_dir + "/config.ini", 'w') as configfile:
+        with open(f"{saved_dir}/config.ini", 'w') as configfile:
             config.write(configfile)
     except:
-        print(f"Fail to save the config in config.ini.")
+        print("Fail to save the config in config.ini.")
 
     torch.multiprocessing.set_start_method("spawn")
     torch.multiprocessing.set_sharing_strategy("file_system")
@@ -143,7 +144,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print("\n=============== Argument ===============")
     for key in vars(args):
-        print("{}: {}".format(key, vars(args)[key]))
+        print(f"{key}: {vars(args)[key]}")
     print("========================================")
 
     split_and_convert(args)

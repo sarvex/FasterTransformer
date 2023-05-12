@@ -21,9 +21,9 @@ USE_CACHE_BATCH_MAJOR_ATTENTION = True
 
 def get_op_cache_config(size_per_head, is_fp16):
     x = 8 if is_fp16 else 4
-    use_batch_major_op_cache = True if USE_CACHE_BATCH_MAJOR_ATTENTION == True and \
-                                       size_per_head % x == 0 \
-                                    else False
+    use_batch_major_op_cache = (
+        USE_CACHE_BATCH_MAJOR_ATTENTION == True and size_per_head % x == 0
+    )
     x = x if use_batch_major_op_cache else 1
     return use_batch_major_op_cache, x
 
@@ -31,11 +31,18 @@ class FtDecoderWeights(object):
     def __init__(self, layer_num, hidden_dim, onmtcheckpoint, max_step_for_pe=2048):
         self.max_step_for_pe = max_step_for_pe
         self.hidden_dim = hidden_dim
-        self.w = []
         prefix = 'decoder.transformer_layers.'
-        self.w.append(torch.stack(
-            [onmtcheckpoint['model'][prefix + str(i) + '.layer_norm_1.weight'] for i in range(layer_num)],
-            0).contiguous())
+        self.w = [
+            torch.stack(
+                [
+                    onmtcheckpoint['model'][
+                        prefix + str(i) + '.layer_norm_1.weight'
+                    ]
+                    for i in range(layer_num)
+                ],
+                0,
+            ).contiguous()
+        ]
         self.w.append(torch.stack(
             [onmtcheckpoint['model'][prefix + str(i) + '.layer_norm_1.bias'] for i in range(layer_num)],
             0).contiguous())
@@ -120,10 +127,10 @@ class FTDecoder(nn.Module):
     def __init__(self, head_num, head_size, mem_hidden_dim, layer_num, weights, args):
         super().__init__()
         self.args = args
-        self.is_fp16 = True if self.args.data_type == 'fp16' else False
+        self.is_fp16 = self.args.data_type == 'fp16'
         self.layer_num = layer_num
         self.use_batch_major_op_cache, self.op_cache_dim_x = get_op_cache_config(head_size, self.is_fp16)
-        
+
         torch.classes.load_library(args.decoder_ths_path)
         try:
             self.dec_layer = torch.classes.FasterTransformer.Decoder(*weights.w, head_num, head_size, head_num * head_size * 4, layer_num, mem_hidden_dim)

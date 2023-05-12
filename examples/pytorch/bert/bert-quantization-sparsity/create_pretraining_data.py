@@ -156,7 +156,7 @@ def create_training_instances(input_files, tokenizer, max_seq_length,
   # (2) Blank lines between documents. Document boundaries are needed so
   # that the "next sentence prediction" task doesn't span between documents.
   for input_file in input_files:
-    print("creating instance from {}".format(input_file))
+    print(f"creating instance from {input_file}")
     with open(input_file, "r") as reader:
       while True:
         line = tokenization.convert_to_unicode(reader.readline())
@@ -167,8 +167,7 @@ def create_training_instances(input_files, tokenizer, max_seq_length,
         # Empty lines are used as document delimiters
         if not line:
           all_documents.append([])
-        tokens = tokenizer.tokenize(line)
-        if tokens:
+        if tokens := tokenizer.tokenize(line):
           all_documents[-1].append(tokens)
 
   # Remove empty documents
@@ -270,13 +269,11 @@ def create_instances_from_document(
             tokens_b.extend(current_chunk[j])
         truncate_seq_pair(tokens_a, tokens_b, max_num_tokens, rng)
 
-        assert len(tokens_a) >= 1
-        assert len(tokens_b) >= 1
+        assert tokens_a
+        assert tokens_b
 
-        tokens = []
-        segment_ids = []
-        tokens.append("[CLS]")
-        segment_ids.append(0)
+        tokens = ["[CLS]"]
+        segment_ids = [0]
         for token in tokens_a:
           tokens.append(token)
           segment_ids.append(0)
@@ -315,12 +312,9 @@ def create_masked_lm_predictions(tokens, masked_lm_prob,
                                  max_predictions_per_seq, vocab_words, rng):
   """Creates the predictions for the masked LM objective."""
 
-  cand_indexes = []
-  for (i, token) in enumerate(tokens):
-    if token == "[CLS]" or token == "[SEP]":
-      continue
-    cand_indexes.append(i)
-
+  cand_indexes = [
+      i for i, token in enumerate(tokens) if token not in ["[CLS]", "[SEP]"]
+  ]
   rng.shuffle(cand_indexes)
 
   output_tokens = list(tokens)
@@ -341,13 +335,10 @@ def create_masked_lm_predictions(tokens, masked_lm_prob,
     # 80% of the time, replace with [MASK]
     if rng.random() < 0.8:
       masked_token = "[MASK]"
+    elif rng.random() < 0.5:
+      masked_token = tokens[index]
     else:
-      # 10% of the time, keep original
-      if rng.random() < 0.5:
-        masked_token = tokens[index]
-      # 10% of the time, replace with random word
-      else:
-        masked_token = vocab_words[rng.randint(0, len(vocab_words) - 1)]
+      masked_token = vocab_words[rng.randint(0, len(vocab_words) - 1)]
 
     output_tokens[index] = masked_token
 
@@ -384,92 +375,92 @@ def truncate_seq_pair(tokens_a, tokens_b, max_num_tokens, rng):
 
 def main():
 
-    parser = argparse.ArgumentParser()
-    ## Required parameters
-    parser.add_argument("--vocab_file",
-                        default=None,
-                        type=str,
-                        required=True,
-                        help="The vocabulary the BERT model will train on.")
-    parser.add_argument("--input_file",
-                        default=None,
-                        type=str,
-                        required=True,
-                        help="The input train corpus. can be directory with .txt files or a path to a single file")
-    parser.add_argument("--output_file",
-                        default=None,
-                        type=str,
-                        required=True,
-                        help="The output file where the model checkpoints will be written.")
+  parser = argparse.ArgumentParser()
+  ## Required parameters
+  parser.add_argument("--vocab_file",
+                      default=None,
+                      type=str,
+                      required=True,
+                      help="The vocabulary the BERT model will train on.")
+  parser.add_argument("--input_file",
+                      default=None,
+                      type=str,
+                      required=True,
+                      help="The input train corpus. can be directory with .txt files or a path to a single file")
+  parser.add_argument("--output_file",
+                      default=None,
+                      type=str,
+                      required=True,
+                      help="The output file where the model checkpoints will be written.")
 
-    ## Other parameters
+  ## Other parameters
 
-    # str
-    parser.add_argument("--bert_model", default="bert-large-uncased", type=str, required=False,
-                        help="Bert pre-trained model selected in the list: bert-base-uncased, "
-                              "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.")
+  # str
+  parser.add_argument("--bert_model", default="bert-large-uncased", type=str, required=False,
+                      help="Bert pre-trained model selected in the list: bert-base-uncased, "
+                            "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.")
 
-    #int 
-    parser.add_argument("--max_seq_length",
-                        default=128,
-                        type=int,
-                        help="The maximum total input sequence length after WordPiece tokenization. \n"
-                             "Sequences longer than this will be truncated, and sequences shorter \n"
-                             "than this will be padded.")
-    parser.add_argument("--dupe_factor",
-                        default=10,
-                        type=int,
-                        help="Number of times to duplicate the input data (with different masks).")
-    parser.add_argument("--max_predictions_per_seq",
-                        default=20,
-                        type=int,
-                        help="Maximum sequence length.")
-                             
-
-    # floats
-
-    parser.add_argument("--masked_lm_prob",
-                        default=0.15,
-                        type=float,
-                        help="Masked LM probability.")
-
-    parser.add_argument("--short_seq_prob",
-                        default=0.1,
-                        type=float,
-                        help="Probability to create a sequence shorter than maximum sequence length")
-
-    parser.add_argument("--do_lower_case",
-                        action='store_true',
-                        default=True,
-                        help="Whether to lower case the input text. True for uncased models, False for cased models.")
-    parser.add_argument('--random_seed',
-                        type=int,
-                        default=12345,
-                        help="random seed for initialization")
-
-    args = parser.parse_args()
-
-    tokenizer = BertTokenizer(args.vocab_file, do_lower_case=args.do_lower_case, max_len=512)
-    
-    input_files = []
-    if os.path.isfile(args.input_file):
-      input_files.append(args.input_file)
-    elif os.path.isdir(args.input_file):
-      input_files = [os.path.join(args.input_file, f) for f in os.listdir(args.input_file) if (os.path.isfile(os.path.join(args.input_file, f)) and f.endswith('.txt') )]
-    else:
-      raise ValueError("{} is not a valid path".format(args.input_file))
-
-    rng = random.Random(args.random_seed)
-    instances = create_training_instances(
-        input_files, tokenizer, args.max_seq_length, args.dupe_factor,
-        args.short_seq_prob, args.masked_lm_prob, args.max_predictions_per_seq,
-        rng)
-
-    output_file = args.output_file
+  #int 
+  parser.add_argument("--max_seq_length",
+                      default=128,
+                      type=int,
+                      help="The maximum total input sequence length after WordPiece tokenization. \n"
+                           "Sequences longer than this will be truncated, and sequences shorter \n"
+                           "than this will be padded.")
+  parser.add_argument("--dupe_factor",
+                      default=10,
+                      type=int,
+                      help="Number of times to duplicate the input data (with different masks).")
+  parser.add_argument("--max_predictions_per_seq",
+                      default=20,
+                      type=int,
+                      help="Maximum sequence length.")
 
 
-    write_instance_to_example_file(instances, tokenizer, args.max_seq_length,
-                                    args.max_predictions_per_seq, output_file)
+  # floats
+
+  parser.add_argument("--masked_lm_prob",
+                      default=0.15,
+                      type=float,
+                      help="Masked LM probability.")
+
+  parser.add_argument("--short_seq_prob",
+                      default=0.1,
+                      type=float,
+                      help="Probability to create a sequence shorter than maximum sequence length")
+
+  parser.add_argument("--do_lower_case",
+                      action='store_true',
+                      default=True,
+                      help="Whether to lower case the input text. True for uncased models, False for cased models.")
+  parser.add_argument('--random_seed',
+                      type=int,
+                      default=12345,
+                      help="random seed for initialization")
+
+  args = parser.parse_args()
+
+  tokenizer = BertTokenizer(args.vocab_file, do_lower_case=args.do_lower_case, max_len=512)
+
+  input_files = []
+  if os.path.isfile(args.input_file):
+    input_files.append(args.input_file)
+  elif os.path.isdir(args.input_file):
+    input_files = [os.path.join(args.input_file, f) for f in os.listdir(args.input_file) if (os.path.isfile(os.path.join(args.input_file, f)) and f.endswith('.txt') )]
+  else:
+    raise ValueError(f"{args.input_file} is not a valid path")
+
+  rng = random.Random(args.random_seed)
+  instances = create_training_instances(
+      input_files, tokenizer, args.max_seq_length, args.dupe_factor,
+      args.short_seq_prob, args.masked_lm_prob, args.max_predictions_per_seq,
+      rng)
+
+  output_file = args.output_file
+
+
+  write_instance_to_example_file(instances, tokenizer, args.max_seq_length,
+                                  args.max_predictions_per_seq, output_file)
 
 
 if __name__ == "__main__":

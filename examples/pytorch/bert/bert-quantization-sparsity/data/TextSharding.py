@@ -50,7 +50,7 @@ class Sharding:
         for input_file in self.input_files:
             print('input file:', input_file)
             with open(input_file, mode='r', newline='\n') as f:
-                for i, line in enumerate(f):
+                for line in f:
                     if line.strip():
                         self.articles[global_article_count] = line.rstrip()
                         global_article_count += 1
@@ -136,11 +136,7 @@ class Sharding:
 
 
     def get_sentences_per_shard(self, shard):
-        result = 0
-        for article_id in shard:
-            result += len(self.sentences[article_id])
-
-        return result
+        return sum(len(self.sentences[article_id]) for article_id in shard)
 
 
     def distribute_articles_over_shards(self):
@@ -197,15 +193,14 @@ class Sharding:
                 nominal_sentences_per_test_shard = len(self.sentences[current_article_id])
                 print('Warning: A single article contains more than the nominal number of sentences per test shard.')
 
-        training_counts = []
-        test_counts = []
-
-        for shard in self.output_training_files:
-            training_counts.append(self.get_sentences_per_shard(self.output_training_files[shard]))
-
-        for shard in self.output_test_files:
-            test_counts.append(self.get_sentences_per_shard(self.output_test_files[shard]))
-
+        training_counts = [
+            self.get_sentences_per_shard(self.output_training_files[shard])
+            for shard in self.output_training_files
+        ]
+        test_counts = [
+            self.get_sentences_per_shard(self.output_test_files[shard])
+            for shard in self.output_test_files
+        ]
         training_median = statistics.median(training_counts)
         test_median = statistics.median(test_counts)
 
@@ -267,21 +262,21 @@ class Sharding:
                 nominal_sentences_per_training_shard += 1
                 # nominal_sentences_per_test_shard += 1
 
-            training_counts = []
-            test_counts = []
-            for shard in self.output_training_files:
-                training_counts.append(self.get_sentences_per_shard(self.output_training_files[shard]))
-
-            for shard in self.output_test_files:
-                test_counts.append(self.get_sentences_per_shard(self.output_test_files[shard]))
-
+            training_counts = [
+                self.get_sentences_per_shard(self.output_training_files[shard])
+                for shard in self.output_training_files
+            ]
+            test_counts = [
+                self.get_sentences_per_shard(self.output_test_files[shard])
+                for shard in self.output_test_files
+            ]
             training_median = statistics.median(training_counts)
             test_median = statistics.median(test_counts)
 
             print('Distributing data over shards:', len(unused_article_set), 'articles remaining.')
 
 
-        if len(unused_article_set) != 0:
+        if unused_article_set:
             print('Warning: Some articles did not make it into output files.')
 
 
